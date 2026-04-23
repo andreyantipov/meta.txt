@@ -35,6 +35,8 @@ type FlatRow =
       path: string;
       name: string;
       open: boolean;
+      lastMask: boolean[];
+      hasOpenChildren: boolean;
     }
   | {
       kind: "file";
@@ -43,6 +45,7 @@ type FlatRow =
       depth: number;
       path: string;
       name: string;
+      lastMask: boolean[];
     }
   | {
       kind: "empty";
@@ -104,8 +107,15 @@ function flattenBuilt(
       continue;
     }
     const rootExp = expanded[root.name] ?? new Set<string>();
-    const walk = (nodes: TreeNode[], depth: number) => {
-      for (const n of nodes) {
+    const walk = (
+      nodes: TreeNode[],
+      depth: number,
+      parentMask: boolean[],
+    ) => {
+      for (let i = 0; i < nodes.length; i++) {
+        const n = nodes[i]!;
+        const isLast = i === nodes.length - 1;
+        const mask = [...parentMask, isLast];
         if (n.isDir) {
           const dOpen = rootExp.has(n.fullPath);
           out.push({
@@ -116,8 +126,10 @@ function flattenBuilt(
             path: n.fullPath,
             name: n.name,
             open: dOpen,
+            lastMask: mask,
+            hasOpenChildren: dOpen && n.children.length > 0,
           });
-          if (dOpen) walk(n.children, depth + 1);
+          if (dOpen) walk(n.children, depth + 1, mask);
         } else {
           out.push({
             kind: "file",
@@ -126,11 +138,12 @@ function flattenBuilt(
             depth,
             path: n.fullPath,
             name: n.name,
+            lastMask: mask,
           });
         }
       }
     };
-    walk(tree, 0);
+    walk(tree, 0, []);
   }
   return out;
 }
@@ -351,11 +364,13 @@ const Row = memo(function Row({
       <button
         type="button"
         onClick={() => onToggleDir(row.rootName, row.path)}
-        className="relative flex h-full w-full items-center gap-1.5 rounded-md pr-2 text-left text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+        className="relative flex h-full w-full items-center gap-1.5 rounded-md pr-2 text-left text-sm text-sidebar-foreground hover:bg-foreground/5 hover:text-sidebar-accent-foreground"
         style={{ paddingLeft: BASE_PAD + row.depth * INDENT }}
       >
         <TreeGuides
           depth={row.depth}
+          lastMask={row.lastMask}
+          hasOpenChildren={row.hasOpenChildren}
           basePad={BASE_PAD}
           indent={INDENT}
           chevHalf={CHEV_HALF}
@@ -384,9 +399,8 @@ const Row = memo(function Row({
       title={row.path}
       className={cn(
         "relative flex h-full w-full items-center gap-1.5 rounded-md pr-2 text-left text-sm",
-        "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        isActive &&
-          "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
+        "hover:bg-foreground/5",
+        isActive && "bg-foreground/10 text-foreground",
       )}
       style={{
         paddingLeft: BASE_PAD + row.depth * INDENT + ICON_COL,
@@ -394,6 +408,8 @@ const Row = memo(function Row({
     >
       <TreeGuides
         depth={row.depth}
+        lastMask={row.lastMask}
+        hasOpenChildren={false}
         basePad={BASE_PAD}
         indent={INDENT}
         chevHalf={CHEV_HALF}

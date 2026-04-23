@@ -97,6 +97,7 @@ export function Outline({ active, expanded, onToggle }: Props) {
                 key={`${node.heading.id}-${i}`}
                 node={node}
                 depth={0}
+                lastMask={[i === tree.length - 1]}
                 collapsedIds={collapsedIds}
                 onToggleNode={toggleNode}
                 onSelect={scrollTo}
@@ -112,6 +113,7 @@ export function Outline({ active, expanded, onToggle }: Props) {
 type NodeProps = {
   node: OutlineNode;
   depth: number;
+  lastMask: boolean[];
   collapsedIds: Set<string>;
   onToggleNode: (id: string) => void;
   onSelect: (id: string) => void;
@@ -120,25 +122,29 @@ type NodeProps = {
 const TreeNodeView = memo(function TreeNodeView({
   node,
   depth,
+  lastMask,
   collapsedIds,
   onToggleNode,
   onSelect,
 }: NodeProps) {
   const hasChildren = node.children.length > 0;
   const isCollapsed = collapsedIds.has(node.heading.id);
+  const hasOpenChildren = hasChildren && !isCollapsed;
   const padLeft = BASE_PAD + depth * INDENT;
 
   return (
     <li>
       <div
         className={cn(
-          "group/row relative flex h-6 cursor-pointer items-center gap-1 pr-2 text-[12px] leading-none text-muted-foreground hover:bg-muted hover:text-foreground",
+          "group/row relative flex h-6 cursor-pointer items-center gap-1 pr-2 text-[12px] leading-none text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
         )}
         style={{ paddingLeft: `${padLeft}px` }}
         onClick={() => onSelect(node.heading.id)}
       >
         <TreeGuides
           depth={depth}
+          lastMask={lastMask}
+          hasOpenChildren={hasOpenChildren}
           basePad={BASE_PAD}
           indent={INDENT}
           chevHalf={CHEV_HALF}
@@ -171,13 +177,14 @@ const TreeNodeView = memo(function TreeNodeView({
           {node.heading.text}
         </span>
       </div>
-      {hasChildren && !isCollapsed && (
+      {hasOpenChildren && (
         <ul>
           {node.children.map((child, i) => (
             <TreeNodeView
               key={`${child.heading.id}-${i}`}
               node={child}
               depth={depth + 1}
+              lastMask={[...lastMask, i === node.children.length - 1]}
               collapsedIds={collapsedIds}
               onToggleNode={onToggleNode}
               onSelect={onSelect}
