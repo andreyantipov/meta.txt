@@ -1,6 +1,6 @@
 {
   "name": "knol",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Minimal markdown docs viewer — bunx knol and browse .md files in your project",
   "type": "module",
   "bin": {
