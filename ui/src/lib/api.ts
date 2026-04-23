@@ -16,6 +16,21 @@ export async function fetchDoc(ref: DocRef): Promise<string> {
   return res.text();
 }
 
+export type GitInfo =
+  | { ok: false }
+  | { ok: true; branch: string | null; sha: string | null };
+
+export async function fetchGit(root?: string): Promise<GitInfo> {
+  const qs = root ? `?root=${encodeURIComponent(root)}` : "";
+  try {
+    const res = await fetch(`/api/git${qs}`);
+    if (!res.ok) return { ok: false };
+    return (await res.json()) as GitInfo;
+  } catch {
+    return { ok: false };
+  }
+}
+
 export type ContentHit = {
   root: string;
   path: string;

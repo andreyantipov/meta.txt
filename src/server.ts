@@ -85,6 +85,69 @@ export async function walkMarkdown(
   return out;
 }
 
+async function readGitInfo(rootPath: string): Promise<
+  | { ok: false }
+  | { ok: true; branch: string | null; sha: string | null; dirty?: boolean }
+> {
+  // Walk up from rootPath looking for a `.git` directory or file.
+  let dir = rootPath;
+  let gitDir: string | null = null;
+  for (let i = 0; i < 30; i++) {
+    const candidate = join(dir, ".git");
+    try {
+      const s = await stat(candidate);
+      if (s.isDirectory()) {
+        gitDir = candidate;
+        break;
+      }
+      if (s.isFile()) {
+        // worktree/submodule: .git is a file pointing at the real gitdir
+        const txt = await readFile(candidate, "utf8");
+        const m = txt.match(/^gitdir:\s*(.+)$/m);
+        if (m) {
+          const target = m[1]!.trim();
+          gitDir = target.startsWith("/") ? target : resolve(dir, target);
+          break;
+        }
+      }
+    } catch {}
+    const parent = resolve(dir, "..");
+    if (parent === dir) break;
+    dir = parent;
+  }
+  if (!gitDir) return { ok: false };
+
+  try {
+    const head = (await readFile(join(gitDir, "HEAD"), "utf8")).trim();
+    const refMatch = head.match(/^ref:\s*(.+)$/);
+    if (refMatch) {
+      const refPath = refMatch[1]!.trim();
+      const branch = refPath.replace(/^refs\/heads\//, "");
+      let sha: string | null = null;
+      try {
+        sha = (await readFile(join(gitDir, refPath), "utf8")).trim();
+      } catch {
+        // packed-refs fallback
+        try {
+          const packed = await readFile(join(gitDir, "packed-refs"), "utf8");
+          const line = packed
+            .split("\n")
+            .find((l) => l.endsWith(` ${refPath}`));
+          if (line) sha = line.split(" ")[0]!;
+        } catch {}
+      }
+      return { ok: true, branch, sha };
+    }
+    // detached HEAD: bare sha
+    if (/^[0-9a-f]{40}$/i.test(head)) {
+      return { ok: true, branch: null, sha: head };
+    }
+    return { ok: true, branch: null, sha: null };
+  } catch {
+    return { ok: false };
+  }
+}
+
 function isInside(root: string, target: string): boolean {
   const rel = relative(root, target);
   return !rel.startsWith("..") && !resolve(rel).startsWith("..");
@@ -363,6 +426,14 @@ async function handleHttp(
     );
     broadcast({ type: "scan:done" });
     return Response.json({ roots: result, version: VERSION });
+  }
+
+  if (path === "/api/git") {
+    const rootName = url.searchParams.get("root") ?? roots[0]?.name;
+    const r = rootName ? rootByName.get(rootName) : undefined;
+    if (!r) return Response.json({ ok: false });
+    const info = await readGitInfo(r.path);
+    return Response.json(info);
   }
 
   if (path === "/api/asset") {

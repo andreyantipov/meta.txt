@@ -7,7 +7,13 @@ import { CommandPalette } from "@/components/command-palette";
 import { ChatPanel } from "@/components/chat-panel";
 import { Layout } from "@/components/layout";
 import { StatusBar } from "@/components/status-bar";
-import { fetchDocs, type DocRef, type RootEntry } from "@/lib/api";
+import {
+  fetchDocs,
+  fetchGit,
+  type DocRef,
+  type GitInfo,
+  type RootEntry,
+} from "@/lib/api";
 import { subscribe } from "@/lib/events";
 
 function encodeRef(ref: DocRef): string {
@@ -147,6 +153,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [docStats, setDocStats] = useState<DocStats | null>(null);
+  const [git, setGit] = useState<GitInfo | null>(null);
 
   const [panes, setPanes] = useState<PaneState[]>([{ tabs: [], active: null }]);
   const [activePaneIndex, setActivePaneIndex] = useState(0);
@@ -426,6 +433,32 @@ export default function App() {
   }, [active]);
 
   useEffect(() => {
+    const root = active?.root ?? roots[0]?.name;
+    if (!root) {
+      setGit(null);
+      return;
+    }
+    let cancelled = false;
+    fetchGit(root).then((info) => {
+      if (!cancelled) setGit(info);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [active?.root, roots]);
+
+  const handleClosePane = useCallback((paneIdx: number) => {
+    setPanes((prev) => {
+      if (prev.length < 2) return prev;
+      const next = prev.filter((_, i) => i !== paneIdx);
+      setActivePaneIndex((cur) =>
+        cur === paneIdx ? 0 : cur > paneIdx ? cur - 1 : cur,
+      );
+      return next;
+    });
+  }, []);
+
+  useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
       const k = e.key.toLowerCase();
@@ -560,12 +593,17 @@ export default function App() {
               onTabSelect={handleTabSelect}
               onTabClose={handleTabClose}
               onSplit={handleSplit}
+              onClosePane={handleClosePane}
               onTabMove={handleTabMove}
               mod={mod}
             />
           }
           right={
-            <ChatPanel active={active} onClose={() => setChatOpen(false)} />
+            <ChatPanel
+              active={active}
+              open={chatOpen}
+              onClose={() => setChatOpen(false)}
+            />
           }
           rightOpen={chatOpen}
         />
@@ -575,6 +613,10 @@ export default function App() {
         roots={roots}
         active={active}
         stats={docStats}
+        git={git}
+        zoom={panes[activePaneIndex]?.zoom ?? 1}
+        canZoom={!!active}
+        onZoom={stepActivePaneZoom}
       />
       <CommandPalette
         open={paletteOpen}

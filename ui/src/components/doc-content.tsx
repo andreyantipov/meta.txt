@@ -1,10 +1,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Readability } from "@mozilla/readability";
+// Direct import avoids `reading-time/lib/stream` (Node-only Transform) being
+// pulled in by the package's CJS entry, which Vite externalizes and crashes on.
+// @ts-expect-error — no .d.ts for the lib path
+import readingTime from "reading-time/lib/reading-time";
 import { fetchDoc, type DocRef } from "@/lib/api";
 import { subscribe } from "@/lib/events";
 import { cn } from "@/lib/utils";
 import { renderMermaid } from "@/lib/mermaid";
-import { parseMarkdown, injectHeadingIds, type Heading } from "@/lib/toc";
+import {
+  extractHtmlHeadings,
+  injectHeadingIds,
+  parseMarkdown,
+  type Heading,
+} from "@/lib/toc";
 import { setOutline, clearOutline } from "@/lib/outlines";
 
 export type DocKind = "markdown" | "text" | "html";
@@ -14,6 +23,8 @@ export type DocStats = {
   bytes: number;
   tokens: number;
   approx: boolean;
+  readMinutes: number;
+  words: number;
 };
 
 function kindOf(path: string): DocKind {
@@ -35,6 +46,32 @@ function loadEncoder(): Promise<Encoder> {
 }
 
 const FAKE_BASE = "http://meta-txt.local/";
+
+// Injected as the last <head> child so author styles can't easily win.
+// Tuned to be safe — only colors and link/code defaults; leaves layout alone.
+const DARK_INJECT = `<style>
+:root { color-scheme: dark; }
+html, body { background: #0b0b0c !important; color: #e6e6e6 !important; }
+a { color: #7aa2f7 !important; }
+a:visited { color: #bb9af7 !important; }
+hr { border-color: #2a2a2d !important; }
+code, kbd, samp, pre, tt { background: #1a1a1c !important; color: #e6e6e6 !important; }
+table, th, td { border-color: #2a2a2d !important; }
+th { background: #1a1a1c !important; }
+blockquote { border-left-color: #3a3a3d !important; color: #a8a8ad !important; }
+::selection { background: #2c4f8a !important; color: #fff !important; }
+</style>`;
+
+function withDarkTheme(html: string): string {
+  // Inject just before </head>; if no </head>, prepend at start of <body> or doc.
+  if (/<\/head>/i.test(html)) {
+    return html.replace(/<\/head>/i, `${DARK_INJECT}</head>`);
+  }
+  if (/<body[^>]*>/i.test(html)) {
+    return html.replace(/<body([^>]*)>/i, `<body$1>${DARK_INJECT}`);
+  }
+  return DARK_INJECT + html;
+}
 
 type Article = {
   title: string | null;
@@ -153,7 +190,15 @@ export function DocContent({ doc, zoom = 1, onStats }: Props) {
     if (raw === null) return null;
     const bytes = new Blob([raw]).size;
     const tokens = exactTokens ?? Math.ceil(raw.length / 4);
-    return { kind, bytes, tokens, approx: exactTokens === null };
+    const rt = readingTime(raw);
+    return {
+      kind,
+      bytes,
+      tokens,
+      approx: exactTokens === null,
+      readMinutes: rt.minutes,
+      words: rt.words,
+    };
   }, [kind, raw, exactTokens]);
 
   useEffect(() => {
@@ -175,14 +220,22 @@ export function DocContent({ doc, zoom = 1, onStats }: Props) {
   }, [kind, raw, parsed.headings, doc.root, doc.path]);
 
   useEffect(() => {
+    if (kind !== "html" || raw === null) return;
+    // Always populate outline from raw HTML so iframe-fallback files still
+    // get a TOC. When Readability renders into the DOM, the post-mount effect
+    // below replaces these with the live elements (so click-to-scroll works).
+    setOutline(doc, extractHtmlHeadings(raw));
+    return () => {
+      clearOutline(doc);
+    };
+  }, [kind, raw, doc.root, doc.path]);
+
+  useEffect(() => {
     if (kind !== "html") return;
     const el = htmlRef.current;
     if (!el) return;
     const headings = injectHeadingIds(el);
     setOutline(doc, headings);
-    return () => {
-      clearOutline(doc);
-    };
   }, [kind, raw, doc.root, doc.path]);
 
   const onStatsRef = useRef(onStats);
@@ -246,9 +299,9 @@ export function DocContent({ doc, zoom = 1, onStats }: Props) {
     return (
       <iframe
         ref={iframeRef}
-        srcDoc={raw ?? ""}
+        srcDoc={withDarkTheme(raw ?? "")}
         title={`${doc.root}/${doc.path}`}
-        className="h-full w-full border-0 bg-white"
+        className="h-full w-full border-0 bg-[#0b0b0c]"
       />
     );
   }
