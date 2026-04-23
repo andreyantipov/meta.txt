@@ -2,6 +2,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { CaretRight, FileText, Folder, FolderOpen } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { TreeGuides } from "@/lib/tree-guides";
 import type { DocRef, RootEntry } from "@/lib/api";
 
 type TreeNode = {
@@ -353,7 +354,13 @@ const Row = memo(function Row({
         className="relative flex h-full w-full items-center gap-1.5 rounded-md pr-2 text-left text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
         style={{ paddingLeft: BASE_PAD + row.depth * INDENT }}
       >
-        <Guides depth={row.depth} isFile={false} />
+        <TreeGuides
+          depth={row.depth}
+          basePad={BASE_PAD}
+          indent={INDENT}
+          chevHalf={CHEV_HALF}
+          stubWidth={STUB - 1}
+        />
         <CaretRight
           className={cn(
             "size-3.5 shrink-0 text-muted-foreground transition-transform",
@@ -385,7 +392,13 @@ const Row = memo(function Row({
         paddingLeft: BASE_PAD + row.depth * INDENT + ICON_COL,
       }}
     >
-      <Guides depth={row.depth} isFile={true} />
+      <TreeGuides
+        depth={row.depth}
+        basePad={BASE_PAD}
+        indent={INDENT}
+        chevHalf={CHEV_HALF}
+        stubWidth={STUB + ICON_COL - 3}
+      />
       <FileText
         className={cn(
           "size-3.5 shrink-0",
@@ -397,45 +410,3 @@ const Row = memo(function Row({
   );
 });
 
-const GUIDE_VERT_STYLE: React.CSSProperties = {
-  backgroundImage:
-    "linear-gradient(to bottom, currentColor 3px, transparent 3px)",
-  backgroundSize: "1px 6px",
-  backgroundRepeat: "repeat-y",
-};
-
-const GUIDE_HORIZ_STYLE: React.CSSProperties = {
-  backgroundImage:
-    "linear-gradient(to right, currentColor 3px, transparent 3px)",
-  backgroundSize: "6px 1px",
-  backgroundRepeat: "repeat-x",
-};
-
-function Guides({ depth, isFile }: { depth: number; isFile: boolean }) {
-  if (depth === 0) return null;
-  const lines: React.ReactNode[] = [];
-  for (let i = 0; i < depth; i++) {
-    const x = BASE_PAD + i * INDENT + CHEV_HALF;
-    const isLast = i === depth - 1;
-    lines.push(
-      <span
-        key={`v-${i}`}
-        aria-hidden
-        className="pointer-events-none absolute top-0 h-full w-px text-foreground/10"
-        style={{ ...GUIDE_VERT_STYLE, left: x }}
-      />,
-    );
-    if (isLast) {
-      const stubWidth = isFile ? STUB + ICON_COL - 3 : STUB - 1;
-      lines.push(
-        <span
-          key={`h-${i}`}
-          aria-hidden
-          className="pointer-events-none absolute top-1/2 h-px text-foreground/10"
-          style={{ ...GUIDE_HORIZ_STYLE, left: x + 1, width: stubWidth }}
-        />,
-      );
-    }
-  }
-  return <>{lines}</>;
-}

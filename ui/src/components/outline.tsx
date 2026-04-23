@@ -3,6 +3,7 @@ import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import type { DocRef } from "@/lib/api";
 import type { Heading } from "@/lib/toc";
 import { useOutline } from "@/lib/outlines";
+import { TreeGuides } from "@/lib/tree-guides";
 import { cn } from "@/lib/utils";
 
 type OutlineNode = {
@@ -34,6 +35,8 @@ function buildTree(headings: Heading[]): OutlineNode[] {
 const BASE_PAD = 8;
 const INDENT = 14;
 const CHEV_COL = 14;
+const CHEV_HALF = 7;
+const STUB = INDENT - CHEV_HALF;
 
 type Props = {
   active: DocRef | null;
@@ -129,11 +132,18 @@ const TreeNodeView = memo(function TreeNodeView({
     <li>
       <div
         className={cn(
-          "group/row flex h-6 cursor-pointer items-center gap-1 pr-2 text-[12px] leading-none text-muted-foreground hover:bg-muted hover:text-foreground",
+          "group/row relative flex h-6 cursor-pointer items-center gap-1 pr-2 text-[12px] leading-none text-muted-foreground hover:bg-muted hover:text-foreground",
         )}
         style={{ paddingLeft: `${padLeft}px` }}
         onClick={() => onSelect(node.heading.id)}
       >
+        <TreeGuides
+          depth={depth}
+          basePad={BASE_PAD}
+          indent={INDENT}
+          chevHalf={CHEV_HALF}
+          stubWidth={STUB - 1}
+        />
         {hasChildren ? (
           <button
             type="button"
