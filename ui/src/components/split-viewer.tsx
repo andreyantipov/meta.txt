@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 export type PaneState = {
   tabs: DocRef[];
   active: DocRef | null;
+  zoom?: number;
 };
 
 type Props = {
@@ -44,6 +45,7 @@ export function SplitViewer({
   onStatsChange,
 }: Props) {
   const canSplit = panes.length < 2;
+  const multiPane = panes.length > 1;
 
   if (panes.length === 1) {
     const pane = panes[0]!;
@@ -53,6 +55,7 @@ export function SplitViewer({
         paneIndex={0}
         isActive={activePaneIndex === 0}
         isFocused={activePaneIndex === 0}
+        multiPane={multiPane}
         showRoot={showRoot}
         canSplit={canSplit}
         onFocus={() => onPaneFocus(0)}
@@ -80,6 +83,7 @@ export function SplitViewer({
           index={i}
           isLast={i === panes.length - 1}
           activeIndex={activePaneIndex}
+          multiPane={multiPane}
           showRoot={showRoot}
           canSplit={canSplit}
           onPaneFocus={onPaneFocus}
@@ -99,6 +103,7 @@ type PaneItemProps = {
   index: number;
   isLast: boolean;
   activeIndex: number;
+  multiPane: boolean;
   showRoot: boolean;
   canSplit: boolean;
   onPaneFocus: (idx: number) => void;
@@ -119,6 +124,7 @@ function PaneItem({
   index,
   isLast,
   activeIndex,
+  multiPane,
   showRoot,
   canSplit,
   onPaneFocus,
@@ -136,6 +142,7 @@ function PaneItem({
           paneIndex={index}
           isActive={activeIndex === index}
           isFocused={activeIndex === index}
+          multiPane={multiPane}
           showRoot={showRoot}
           canSplit={canSplit}
           onFocus={() => onPaneFocus(index)}
@@ -158,6 +165,7 @@ type PaneProps = {
   paneIndex: number;
   isActive: boolean;
   isFocused: boolean;
+  multiPane: boolean;
   showRoot: boolean;
   canSplit: boolean;
   onFocus: () => void;
@@ -173,6 +181,7 @@ function Pane({
   paneIndex,
   isActive,
   isFocused,
+  multiPane,
   showRoot,
   canSplit,
   onFocus,
@@ -199,12 +208,18 @@ function Pane({
 
   return (
     <div
-      className={cn(
-        "flex h-full w-full flex-col",
-        isFocused && "ring-0",
-      )}
+      className="relative flex h-full w-full flex-col"
       onMouseDown={onFocus}
     >
+      {multiPane && (
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 z-10 h-0.5 transition-colors",
+            isFocused ? "bg-primary/50" : "bg-transparent",
+          )}
+        />
+      )}
       <TabBar
         paneIndex={paneIndex}
         tabs={pane.tabs}
@@ -216,11 +231,17 @@ function Pane({
         onSplit={onSplit}
         onTabDrop={onTabDrop}
       />
-      <div className="min-h-0 flex-1">
+      <div
+        className={cn(
+          "min-h-0 flex-1 transition-opacity",
+          multiPane && !isFocused && "opacity-70",
+        )}
+      >
         {pane.active ? (
           <DocContent
             key={`${pane.active.root}:${pane.active.path}`}
             doc={pane.active}
+            zoom={pane.zoom ?? 1}
             onStats={handleStats}
           />
         ) : (

@@ -63,6 +63,29 @@ const SIDEBAR_OPEN_KEY = "meta.txt:sidebar-open";
 const PANES_KEY = "meta.txt:panes";
 const ACTIVE_PANE_KEY = "meta.txt:active-pane";
 
+const ZOOM_LEVELS = [0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0] as const;
+
+function clampZoom(z: number): number {
+  if (!Number.isFinite(z)) return 1;
+  return Math.max(ZOOM_LEVELS[0], Math.min(ZOOM_LEVELS[ZOOM_LEVELS.length - 1]!, z));
+}
+
+function stepZoom(current: number, delta: -1 | 1): number {
+  const cur = clampZoom(current);
+  // snap to nearest level, then step
+  let idx = 0;
+  let best = Infinity;
+  for (let i = 0; i < ZOOM_LEVELS.length; i++) {
+    const d = Math.abs(ZOOM_LEVELS[i]! - cur);
+    if (d < best) {
+      best = d;
+      idx = i;
+    }
+  }
+  const next = Math.max(0, Math.min(ZOOM_LEVELS.length - 1, idx + delta));
+  return ZOOM_LEVELS[next]!;
+}
+
 type PersistedPanes = {
   panes: PaneState[];
   activePaneIndex: number;
@@ -76,7 +99,7 @@ function loadPanes(): PersistedPanes | null {
     if (!parsed || !Array.isArray(parsed.panes)) return null;
     const panes: PaneState[] = parsed.panes
       .filter((p: unknown) => p && typeof p === "object")
-      .map((p: { tabs?: unknown; active?: unknown }) => ({
+      .map((p: { tabs?: unknown; active?: unknown; zoom?: unknown }) => ({
         tabs: Array.isArray(p.tabs)
           ? p.tabs.filter(
               (t: unknown) =>
@@ -91,6 +114,7 @@ function loadPanes(): PersistedPanes | null {
           typeof (p.active as DocRef).path === "string"
             ? (p.active as DocRef)
             : null,
+        zoom: typeof p.zoom === "number" ? clampZoom(p.zoom) : 1,
       }));
     if (panes.length === 0) return null;
     const activePaneIndex =
@@ -112,7 +136,7 @@ function filterPanes(panes: PaneState[], roots: RootEntry[]): PaneState[] {
       p.active && tabs.some((t) => sameRef(t, p.active))
         ? p.active
         : tabs[0] ?? null;
-    return { tabs, active };
+    return { tabs, active, zoom: p.zoom };
   });
 }
 
@@ -431,6 +455,43 @@ export default function App() {
             e.key === "]" ? (ai + 1) % n : (ai - 1 + n) % n;
           const next = [...prev];
           next[idx] = { ...pane, active: pane.tabs[nextIdx]! };
+          return next;
+        });
+      } else if (mod && (e.key === "=" || e.key === "+")) {
+        e.preventDefault();
+        e.stopPropagation();
+        setPanes((prev) => {
+          const idx = Math.min(activePaneIndex, prev.length - 1);
+          const pane = prev[idx];
+          if (!pane) return prev;
+          const nextZoom = stepZoom(pane.zoom ?? 1, 1);
+          if (nextZoom === (pane.zoom ?? 1)) return prev;
+          const next = [...prev];
+          next[idx] = { ...pane, zoom: nextZoom };
+          return next;
+        });
+      } else if (mod && e.key === "-") {
+        e.preventDefault();
+        e.stopPropagation();
+        setPanes((prev) => {
+          const idx = Math.min(activePaneIndex, prev.length - 1);
+          const pane = prev[idx];
+          if (!pane) return prev;
+          const nextZoom = stepZoom(pane.zoom ?? 1, -1);
+          if (nextZoom === (pane.zoom ?? 1)) return prev;
+          const next = [...prev];
+          next[idx] = { ...pane, zoom: nextZoom };
+          return next;
+        });
+      } else if (mod && e.key === "0") {
+        e.preventDefault();
+        e.stopPropagation();
+        setPanes((prev) => {
+          const idx = Math.min(activePaneIndex, prev.length - 1);
+          const pane = prev[idx];
+          if (!pane || (pane.zoom ?? 1) === 1) return prev;
+          const next = [...prev];
+          next[idx] = { ...pane, zoom: 1 };
           return next;
         });
       } else if (e.key === "Escape") {

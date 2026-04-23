@@ -123,6 +123,8 @@ Default port is `4242` (override with `-p` or `META_PORT`).
 | `⌘J` / `Ctrl+J`  | toggle chat panel                         |
 | `⌘B` / `Ctrl+B`  | toggle sidebar                            |
 | `⌘[` / `⌘]`      | cycle tabs in the active pane             |
+| `⌘=` / `⌘-`      | zoom active pane in / out                 |
+| `⌘0`             | reset active pane zoom                    |
 | `↑` / `↓`        | navigate palette results                  |
 | `↵`              | open selected result / send chat message  |
 | `⇧↵`             | newline in chat input                     |

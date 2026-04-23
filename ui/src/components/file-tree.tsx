@@ -13,11 +13,11 @@ type TreeNode = {
 };
 
 const BASE_PAD = 8;
-const INDENT = 16;
+const INDENT = 14;
 const CHEV_HALF = 7;
 const STUB = INDENT - CHEV_HALF;
 const ICON_COL = 20;
-const ROW_HEIGHT = 28;
+const ROW_HEIGHT = 24;
 
 type FlatRow =
   | {

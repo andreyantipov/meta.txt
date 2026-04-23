@@ -76,10 +76,11 @@ function extractReader(html: string): Article | null {
 
 type Props = {
   doc: DocRef;
+  zoom?: number;
   onStats: (stats: DocStats | null) => void;
 };
 
-export function DocContent({ doc, onStats }: Props) {
+export function DocContent({ doc, zoom = 1, onStats }: Props) {
   const [raw, setRaw] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -259,6 +260,7 @@ export function DocContent({ doc, onStats }: Props) {
           "mx-auto py-8",
           kind === "text" ? "max-w-4xl px-8" : "max-w-3xl px-8",
         )}
+        style={zoom !== 1 ? { zoom } : undefined}
       >
         {loading && <div className="text-muted-foreground">loading…</div>}
         {error && <div className="text-destructive">{error}</div>}
