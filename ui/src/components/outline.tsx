@@ -85,9 +85,6 @@ export function Outline({ active, expanded, onToggle }: Props) {
           <CaretRight className="size-3 shrink-0" weight="bold" />
         )}
         <span>Outline</span>
-        <span className="ml-auto tabular-nums text-muted-foreground/60">
-          {headings.length}
-        </span>
       </button>
       {expanded && (
         <div className="min-h-0 flex-1 overflow-y-auto py-1">
