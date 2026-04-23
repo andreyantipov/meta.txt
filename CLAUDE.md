@@ -124,10 +124,15 @@ over running the CLI by hand when working through the agent.
 
 The server exposes only two JSON endpoints plus static assets:
 
-| method | path                    | returns                                         |
-| ------ | ----------------------- | ----------------------------------------------- |
-| GET    | `/api/docs`             | `{ root, files: string[] }` — all `.md` in cwd  |
-| GET    | `/api/doc?path=<rel>`   | raw text/plain of the file (path-traversal safe)|
+| method | path                                 | returns                                                             |
+| ------ | ------------------------------------ | ------------------------------------------------------------------- |
+| GET    | `/api/docs`                          | `{ roots: [{ name, path, files: string[] }] }` — one entry per root |
+| GET    | `/api/doc?root=<name>&path=<rel>`    | raw text/plain of the file (path-traversal safe). `root` defaults to the first root if omitted. |
+
+The CLI accepts one or more directories: `meta.txt docs/ api/`, or `-d` can be
+repeated. Each root is assigned a unique name (basename, with `-2`/`-3` suffixes
+on collision) used as the `root` query param and shown as a section header in
+the sidebar when there are multiple roots.
 
 Files are filtered by extension (`.md|.mdx|.markdown`). Paths starting
 with `.` and the usual dependency/output dirs (`node_modules`, `.git`,

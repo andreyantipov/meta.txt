@@ -102,6 +102,13 @@
   * {
     @apply border-border;
   }
+  html,
+  body,
+  #root {
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+  }
   body {
     @apply bg-background text-foreground;
     font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter",
@@ -165,7 +172,12 @@
   .markdown-body hr {
     @apply my-6 border-border;
   }
-  .markdown-body img {
-    @apply max-w-full rounded-md;
+  .markdown-body img,
+  .markdown-body picture,
+  .markdown-body figure,
+  .markdown-body svg,
+  .markdown-body video,
+  .markdown-body iframe {
+    display: none;
   }
 }

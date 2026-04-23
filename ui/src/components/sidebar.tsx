@@ -1,90 +1,182 @@
-import { useMemo, useState } from "react";
-import { FileText, Search } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn } from "@/lib/utils";
+import { useEffect, useMemo, useState } from "react";
+import { Files, SidebarSimple } from "@phosphor-icons/react";
+import { FileTree } from "@/components/file-tree";
+import type { DocRef, RootEntry } from "@/lib/api";
+import { subscribe } from "@/lib/events";
 
-type Props = {
-  files: string[];
-  activePath: string | null;
-  onSelect: (path: string) => void;
+type ScanState = {
+  roots: Array<{
+    name: string;
+    path: string;
+    count: number;
+    currentFile: string | null;
+    done: boolean;
+  }>;
 };
 
-function groupByDir(files: string[]): Array<[string, string[]]> {
-  const groups = new Map<string, string[]>();
-  for (const f of files) {
-    const idx = f.lastIndexOf("/");
-    const dir = idx === -1 ? "." : f.slice(0, idx);
-    if (!groups.has(dir)) groups.set(dir, []);
-    groups.get(dir)!.push(f);
-  }
-  return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
-}
+type Props = {
+  roots: RootEntry[];
+  active: DocRef | null;
+  loading: boolean;
+  onSelect: (ref: DocRef) => void;
+  onClose: () => void;
+};
 
-export function Sidebar({ files, activePath, onSelect }: Props) {
-  const [query, setQuery] = useState("");
+export function Sidebar({
+  roots,
+  active,
+  loading,
+  onSelect,
+  onClose,
+}: Props) {
+  const totalFiles = useMemo(
+    () => roots.reduce((s, r) => s + r.files.length, 0),
+    [roots],
+  );
 
-  const groups = useMemo(() => {
-    const q = query.trim().toLowerCase();
-    const filtered = q ? files.filter((f) => f.toLowerCase().includes(q)) : files;
-    return groupByDir(filtered);
-  }, [files, query]);
+  const [scan, setScan] = useState<ScanState | null>(null);
+
+  useEffect(() => {
+    if (!loading) {
+      setScan(null);
+      return;
+    }
+    return subscribe((evt) => {
+      if (evt.type === "scan:start") {
+        setScan({
+          roots: evt.roots.map((r) => ({
+            name: r.name,
+            path: r.path,
+            count: 0,
+            currentFile: null,
+            done: false,
+          })),
+        });
+      } else if (evt.type === "scan:file") {
+        setScan((s) => {
+          if (!s) return s;
+          return {
+            roots: s.roots.map((r) =>
+              r.name === evt.root
+                ? { ...r, count: evt.count, currentFile: evt.path }
+                : r,
+            ),
+          };
+        });
+      } else if (evt.type === "scan:root-done") {
+        setScan((s) => {
+          if (!s) return s;
+          return {
+            roots: s.roots.map((r) =>
+              r.name === evt.root
+                ? { ...r, count: evt.total, done: true, currentFile: null }
+                : r,
+            ),
+          };
+        });
+      }
+    });
+  }, [loading]);
 
   return (
-    <aside className="flex h-screen w-72 flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground">
-      <div className="border-b border-sidebar-border p-3">
-        <div className="mb-2 flex items-center gap-2 px-1">
-          <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            meta.txt
-          </span>
-        </div>
-        <div className="relative">
-          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="filter…"
-            className="h-8 pl-8"
-          />
-        </div>
+    <aside className="flex h-full min-w-0 flex-col bg-background text-foreground">
+      <div className="flex h-[46px] shrink-0 items-center justify-between border-b border-border bg-background px-3 text-xs">
+        <span className="font-medium text-foreground/80">Files</span>
+        <button
+          type="button"
+          onClick={onClose}
+          title="Collapse sidebar (⌘B)"
+          className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+        >
+          <SidebarSimple className="size-3.5" />
+        </button>
       </div>
 
-      <ScrollArea className="flex-1">
-        <nav className="px-1.5 py-2">
-          {groups.length === 0 && (
-            <div className="px-3 py-6 text-center text-xs text-muted-foreground">
-              no .md files
-            </div>
-          )}
-          {groups.map(([dir, items]) => (
-            <div key={dir} className="mb-2">
-              <div className="px-2 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                {dir}
+      {loading ? (
+        <ScanProgress scan={scan} rootCount={roots.length} />
+      ) : totalFiles === 0 ? (
+        <div className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
+          <Files
+            size={36}
+            weight="duotone"
+            className="text-muted-foreground/50"
+          />
+          <div className="text-sm text-muted-foreground">
+            No documents found
+          </div>
+          <div className="text-[11px] text-muted-foreground/70">
+            supports .md, .mdx, .txt, .html
+          </div>
+        </div>
+      ) : (
+        <nav className="min-h-0 flex-1 px-1.5">
+          <FileTree roots={roots} active={active} onSelect={onSelect} />
+        </nav>
+      )}
+    </aside>
+  );
+}
+
+function ScanProgress({
+  scan,
+  rootCount,
+}: {
+  scan: ScanState | null;
+  rootCount: number;
+}) {
+  const totalFound =
+    scan?.roots.reduce((s, r) => s + r.count, 0) ?? 0;
+
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-4 text-center">
+      <div className="flex flex-col items-center gap-0.5">
+        <div className="text-sm text-muted-foreground">
+          Scanning documents…
+        </div>
+        {totalFound > 0 && (
+          <div className="font-mono text-[11px] tabular-nums text-muted-foreground/70">
+            {totalFound.toLocaleString()}{" "}
+            {totalFound === 1 ? "file" : "files"} found
+          </div>
+        )}
+      </div>
+
+      {scan && scan.roots.length > 0 && (
+        <div className="flex w-full max-w-full flex-col gap-1 px-1">
+          {scan.roots.map((r) => (
+            <div
+              key={r.name}
+              className="flex min-w-0 flex-col gap-0.5 rounded-md border border-border/50 bg-background/40 px-2 py-1.5 text-left"
+            >
+              <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="truncate font-medium">{r.name}</span>
+                <span className="shrink-0 tabular-nums text-muted-foreground">
+                  {r.done ? (
+                    <span className="text-emerald-500/80">
+                      {r.count.toLocaleString()} ✓
+                    </span>
+                  ) : (
+                    r.count.toLocaleString()
+                  )}
+                </span>
               </div>
-              {items.map((f) => {
-                const name = dir === "." ? f : f.slice(dir.length + 1);
-                const active = f === activePath;
-                return (
-                  <button
-                    key={f}
-                    onClick={() => onSelect(f)}
-                    title={f}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm",
-                      "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-                      active &&
-                        "bg-sidebar-accent text-sidebar-accent-foreground font-medium",
-                    )}
-                  >
-                    <FileText className="size-3.5 shrink-0 text-muted-foreground" />
-                    <span className="truncate">{name}</span>
-                  </button>
-                );
-              })}
+              <div className="truncate font-mono text-[10px] text-muted-foreground/70">
+                {r.done
+                  ? "done"
+                  : r.currentFile
+                    ? `…/${r.currentFile.slice(-40)}`
+                    : "starting…"}
+              </div>
             </div>
           ))}
-        </nav>
-      </ScrollArea>
-    </aside>
+        </div>
+      )}
+
+      {!scan && rootCount > 0 && (
+        <div className="text-[11px] text-muted-foreground/70">
+          {rootCount} {rootCount === 1 ? "root" : "roots"}
+        </div>
+      )}
+    </div>
   );
 }

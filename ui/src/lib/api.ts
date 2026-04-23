@@ -1,4 +1,7 @@
-export type DocsResponse = { root: string; files: string[] };
+export type RootEntry = { name: string; path: string; files: string[] };
+export type DocsResponse = { roots: RootEntry[] };
+
+export type DocRef = { root: string; path: string };
 
 export async function fetchDocs(): Promise<DocsResponse> {
   const res = await fetch("/api/docs");
@@ -6,8 +9,29 @@ export async function fetchDocs(): Promise<DocsResponse> {
   return res.json();
 }
 
-export async function fetchDoc(path: string): Promise<string> {
-  const res = await fetch(`/api/doc?path=${encodeURIComponent(path)}`);
+export async function fetchDoc(ref: DocRef): Promise<string> {
+  const qs = new URLSearchParams({ root: ref.root, path: ref.path });
+  const res = await fetch(`/api/doc?${qs}`);
   if (!res.ok) throw new Error(await res.text());
   return res.text();
+}
+
+export type ContentHit = {
+  root: string;
+  path: string;
+  line: number;
+  snippet: string;
+  matchStart: number;
+  matchEnd: number;
+};
+
+export async function searchContent(
+  q: string,
+  signal?: AbortSignal,
+): Promise<ContentHit[]> {
+  if (q.trim().length < 2) return [];
+  const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`, { signal });
+  if (!res.ok) return [];
+  const data = (await res.json()) as { results?: ContentHit[] };
+  return data.results ?? [];
 }
