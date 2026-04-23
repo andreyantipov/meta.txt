@@ -58,6 +58,26 @@ export function parseMarkdown(raw: string): {
   return { html, headings };
 }
 
+export function extractHtmlHeadings(raw: string): Heading[] {
+  try {
+    const doc = new DOMParser().parseFromString(raw, "text/html");
+    const next = makeSlugger();
+    const out: Heading[] = [];
+    doc
+      .querySelectorAll<HTMLHeadingElement>("h1,h2,h3,h4,h5,h6")
+      .forEach((el) => {
+        const depth = Number(el.tagName.slice(1));
+        const text = (el.textContent ?? "").trim();
+        if (!text) return;
+        const id = el.id || next(text);
+        out.push({ depth, text, id });
+      });
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 export function injectHeadingIds(container: HTMLElement): Heading[] {
   const next = makeSlugger();
   const headings: Heading[] = [];

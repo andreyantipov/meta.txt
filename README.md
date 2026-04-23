@@ -33,13 +33,16 @@ chat prompts you type yourself.
 - **Mermaid diagrams** — fenced ` ```mermaid ` code blocks are rendered
   to inline SVG client-side via [mermaid](https://mermaid.js.org/),
   themed to match the app.
-- **File tree** — Monaco-style tree with vertical indent guides and
-  T-connectors, expand/collapse state persisted per-folder. Auto-expands
+- **File tree + Outline** — both panels share a single `TreeRow`
+  component: one indicator column (folder/file icon or heading caret),
+  consistent dotted indent guides with T-connectors, same hover/active
+  treatment. File-tree expand state persists per-folder; auto-expands
   ancestors of the active file.
 - **Outline** — heading TOC for the active document, shown below the
   file tree. Works for `.md` / `.mdx` (from `marked` tokens) and `.html`
-  (scraped from the rendered DOM). Click any entry to smooth-scroll to
-  that heading.
+  (parsed from raw HTML up-front, then upgraded with live element refs
+  once the page renders so click-to-scroll works in reader mode). Click
+  any entry to smooth-scroll to that heading.
 - **Live reload** — the server watches your roots and pushes updates over
   WebSocket; edits show up without a refresh.
 
@@ -72,10 +75,11 @@ chat prompts you type yourself.
 - **Tabs per pane** — open docs stay open as tabs, click to switch,
   middle-click or hover-`×` to close. `⌘[` / `⌘]` cycle through tabs
   in the active pane.
-- **Horizontal split** — the split button in the tab bar duplicates the
-  active tab into a second pane on the right with a resizable handle
-  between them. Close the last tab in the right pane to collapse back
-  to one.
+- **Horizontal split** — the split button in the tab bar opens a second
+  pane on the right with a resizable handle between them. The secondary
+  pane gets an `×` close button (the primary pane intentionally does
+  not — closing it would discard your original tabs); closing the last
+  tab in either pane also collapses the split.
 - **Drag-and-drop between panes** — grab any tab and drop it onto
   either pane's tab bar. A thin indicator shows the insert position;
   moving the last tab out of a pane auto-collapses it.
@@ -88,10 +92,11 @@ chat prompts you type yourself.
   handles. Per-panel min/max limits, sizes saved to `localStorage`. The
   viewer zone internally hosts the tab/split view described above.
 - **Collapsible panels** — `⌘B` toggles the sidebar, `⌘J` toggles chat.
-- **Status bar** — shows app version, root count, active doc path, plus
-  live stats for the active pane: file kind, byte size, exact token count
-  (via `gpt-tokenizer`), and rough $/1M-token cost estimates for Sonnet
-  and Opus.
+- **Status bar** — shows app version, root count, current git
+  `branch (sha) → path`, plus live stats for the active pane: file kind,
+  byte size, exact token count (via `gpt-tokenizer`, with model context
+  budgets in the tooltip), Medium-style reading time (via `reading-time`),
+  and a zoom group (`−` `100%` `+`) for the active pane.
 - **Dark mode by default.** Tokens via CSS variables from shadcn/ui
   (`new-york` style, zinc base).
 - **Phosphor icons** throughout (tree, palette, chat, headers).
@@ -136,9 +141,11 @@ The server exposes a small JSON API used by the web UI:
 
 | Method | Path                                | Returns                                                |
 | ------ | ----------------------------------- | ------------------------------------------------------ |
-| GET    | `/api/docs`                         | `{ roots: [{ name, path, files: string[] }] }`         |
+| GET    | `/api/docs`                         | `{ roots: [{ name, path, files: string[] }], version }` |
 | GET    | `/api/doc?root=<name>&path=<rel>`   | raw text/plain of a file (path-traversal safe)         |
+| GET    | `/api/asset?root=<name>&path=<rel>` | raw bytes for binary assets next to a doc              |
 | GET    | `/api/search?q=<query>`             | `{ results: ContentHit[] }` — substring hits with line + snippet |
+| GET    | `/api/git?root=<name>`              | `{ ok, branch, sha }` — best-effort `.git/HEAD` read   |
 | GET    | `/api/chat/history`                 | `{ messages: ChatMessage[] }` — persisted chat log     |
 | WS     | `/api/ws`                           | push events for doc/docs changes + chat streaming      |
 
@@ -155,10 +162,11 @@ your own machine. A few things to keep in mind:
   files are first passed through Mozilla Readability and rendered as
   text — no scripts, no network, no images. But if extraction fails
   (e.g. the page isn't article-shaped) we fall back to `<iframe srcdoc>`
-  with scripts, styles, and network access enabled. **Do not point
-  `meta.txt` at directories containing untrusted HTML** — the iframe
-  fallback can execute arbitrary JavaScript. If this matters, avoid
-  `.html` files in the served roots.
+  with scripts, styles, and network access enabled. The iframe gets a
+  small dark-theme stylesheet injected so it doesn't flashbang you on
+  open, but **do not point `meta.txt` at directories containing
+  untrusted HTML** — the iframe fallback can execute arbitrary
+  JavaScript. If this matters, avoid `.html` files in the served roots.
 - **Chat uses your local Claude login.** The chat panel spawns
   `npx -y @agentclientprotocol/claude-agent-acp` and authenticates via
   your machine's existing `claude` CLI credentials. No API keys are

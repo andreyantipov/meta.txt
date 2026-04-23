@@ -20,13 +20,14 @@ type AgentState = "starting" | "ready" | "error" | "idle";
 
 type Props = {
   active: DocRef | null;
+  open: boolean;
   onClose: () => void;
 };
 
 const REVEAL_PER_FRAME = 4;
 const CATCHUP_DIVISOR = 20;
 
-export function ChatPanel({ active, onClose }: Props) {
+export function ChatPanel({ active, open, onClose }: Props) {
   const [messages, setMessages] = useState<Msg[]>([]);
   const [input, setInput] = useState("");
   const [state, setState] = useState<AgentState>("idle");
@@ -34,6 +35,14 @@ export function ChatPanel({ active, onClose }: Props) {
   const [attachContext, setAttachContext] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    // Defer one frame so the panel is unhidden before we focus.
+    const id = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(id);
+  }, [open]);
   const bufferRef = useRef<string>("");
   const streamingIdRef = useRef<string | null>(null);
   const rafRef = useRef<number | null>(null);
@@ -215,6 +224,7 @@ export function ChatPanel({ active, onClose }: Props) {
       <div className="shrink-0 border-t border-border p-3">
         <div className="flex flex-col rounded-md border border-input bg-transparent transition-colors focus-within:border-ring">
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => {
