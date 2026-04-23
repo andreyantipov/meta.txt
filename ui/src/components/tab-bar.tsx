@@ -6,7 +6,7 @@ import {
   type DragEvent,
   type MouseEvent,
 } from "react";
-import { FileText, Minus, Plus, SplitHorizontal, X } from "@phosphor-icons/react";
+import { FileText, SplitHorizontal, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { DocRef } from "@/lib/api";
 
@@ -23,11 +23,10 @@ type Props = {
   active: DocRef | null;
   showRoot: boolean;
   canSplit: boolean;
-  zoom: number;
   onSelect: (ref: DocRef) => void;
   onClose: (ref: DocRef) => void;
   onSplit?: () => void;
-  onZoom: (delta: -1 | 0 | 1) => void;
+  onClosePane?: () => void;
   onTabDrop: (
     fromPaneIndex: number,
     ref: DocRef,
@@ -50,11 +49,10 @@ export function TabBar({
   active,
   showRoot,
   canSplit,
-  zoom,
   onSelect,
   onClose,
   onSplit,
-  onZoom,
+  onClosePane,
   onTabDrop,
 }: Props) {
   const tabRefs = useRef<Map<string, HTMLDivElement | null>>(new Map());
@@ -115,7 +113,7 @@ export function TabBar({
 
   return (
     <div
-      className="flex h-8 shrink-0 items-stretch overflow-x-auto border-b border-border bg-muted/20"
+      className="flex h-8 shrink-0 items-stretch overflow-x-auto border-b border-border bg-muted/20 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}
       onDrop={handleDrop}
@@ -143,37 +141,6 @@ export function TabBar({
       })}
       <div className="relative flex flex-1 items-center justify-end gap-0.5 px-1">
         {dropIndex === tabs.length && <DropIndicator />}
-        {tabs.length > 0 && (
-          <div className="flex items-center gap-0.5 pr-0.5">
-            <button
-              type="button"
-              onClick={() => onZoom(-1)}
-              title="Zoom out (⌘−)"
-              className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              <Minus className="size-3" weight="bold" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onZoom(0)}
-              title="Reset zoom (⌘0)"
-              className={cn(
-                "min-w-[34px] rounded px-1 text-center text-[11px] font-mono tabular-nums transition-colors hover:bg-muted/60 hover:text-foreground",
-                zoom !== 1 ? "text-foreground" : "text-muted-foreground",
-              )}
-            >
-              {Math.round(zoom * 100)}%
-            </button>
-            <button
-              type="button"
-              onClick={() => onZoom(1)}
-              title="Zoom in (⌘=)"
-              className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
-            >
-              <Plus className="size-3" weight="bold" />
-            </button>
-          </div>
-        )}
         {canSplit && onSplit && tabs.length > 0 && (
           <button
             type="button"
@@ -182,6 +149,16 @@ export function TabBar({
             className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground"
           >
             <SplitHorizontal className="size-3.5" />
+          </button>
+        )}
+        {onClosePane && (
+          <button
+            type="button"
+            onClick={onClosePane}
+            title="Close split pane"
+            className="flex size-5 items-center justify-center rounded text-muted-foreground transition-colors hover:bg-destructive/20 hover:text-foreground"
+          >
+            <X className="size-3" weight="bold" />
           </button>
         )}
       </div>

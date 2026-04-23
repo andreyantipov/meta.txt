@@ -21,10 +21,10 @@ type Props = {
   activePaneIndex: number;
   showRoot: boolean;
   onPaneFocus: (idx: number) => void;
-  onPaneZoom: (idx: number, delta: -1 | 0 | 1) => void;
   onTabSelect: (paneIdx: number, ref: DocRef) => void;
   onTabClose: (paneIdx: number, ref: DocRef) => void;
   onSplit: (fromPaneIdx: number) => void;
+  onClosePane: (paneIdx: number) => void;
   onTabMove: (
     fromPaneIndex: number,
     toPaneIndex: number,
@@ -39,10 +39,10 @@ export function SplitViewer({
   activePaneIndex,
   showRoot,
   onPaneFocus,
-  onPaneZoom,
   onTabSelect,
   onTabClose,
   onSplit,
+  onClosePane,
   onTabMove,
   onStatsChange,
 }: Props) {
@@ -61,10 +61,10 @@ export function SplitViewer({
         showRoot={showRoot}
         canSplit={canSplit}
         onFocus={() => onPaneFocus(0)}
-        onZoom={(delta) => onPaneZoom(0, delta)}
         onTabSelect={(ref) => onTabSelect(0, ref)}
         onTabClose={(ref) => onTabClose(0, ref)}
         onSplit={() => onSplit(0)}
+        onClosePane={undefined}
         onTabDrop={(from, ref, insertIdx) =>
           onTabMove(from, 0, ref, insertIdx)
         }
@@ -90,10 +90,10 @@ export function SplitViewer({
           showRoot={showRoot}
           canSplit={canSplit}
           onPaneFocus={onPaneFocus}
-          onPaneZoom={onPaneZoom}
           onTabSelect={onTabSelect}
           onTabClose={onTabClose}
           onSplit={onSplit}
+          onClosePane={onClosePane}
           onTabMove={onTabMove}
           onStatsChange={onStatsChange}
         />
@@ -111,10 +111,10 @@ type PaneItemProps = {
   showRoot: boolean;
   canSplit: boolean;
   onPaneFocus: (idx: number) => void;
-  onPaneZoom: (idx: number, delta: -1 | 0 | 1) => void;
   onTabSelect: (idx: number, ref: DocRef) => void;
   onTabClose: (idx: number, ref: DocRef) => void;
   onSplit: (idx: number) => void;
+  onClosePane: (idx: number) => void;
   onTabMove: (
     fromPaneIndex: number,
     toPaneIndex: number,
@@ -133,10 +133,10 @@ function PaneItem({
   showRoot,
   canSplit,
   onPaneFocus,
-  onPaneZoom,
   onTabSelect,
   onTabClose,
   onSplit,
+  onClosePane,
   onTabMove,
   onStatsChange,
 }: PaneItemProps) {
@@ -152,10 +152,10 @@ function PaneItem({
           showRoot={showRoot}
           canSplit={canSplit}
           onFocus={() => onPaneFocus(index)}
-          onZoom={(delta) => onPaneZoom(index, delta)}
           onTabSelect={(ref) => onTabSelect(index, ref)}
           onTabClose={(ref) => onTabClose(index, ref)}
           onSplit={() => onSplit(index)}
+          onClosePane={index === 0 ? undefined : () => onClosePane(index)}
           onTabDrop={(from, ref, insertIdx) =>
             onTabMove(from, index, ref, insertIdx)
           }
@@ -176,10 +176,10 @@ type PaneProps = {
   showRoot: boolean;
   canSplit: boolean;
   onFocus: () => void;
-  onZoom: (delta: -1 | 0 | 1) => void;
   onTabSelect: (ref: DocRef) => void;
   onTabClose: (ref: DocRef) => void;
   onSplit: () => void;
+  onClosePane: (() => void) | undefined;
   onTabDrop: (fromPaneIndex: number, ref: DocRef, insertIndex: number) => void;
   onStatsChange: (stats: DocStats | null) => void;
 };
@@ -193,10 +193,10 @@ function Pane({
   showRoot,
   canSplit,
   onFocus,
-  onZoom,
   onTabSelect,
   onTabClose,
   onSplit,
+  onClosePane,
   onTabDrop,
   onStatsChange,
 }: PaneProps) {
@@ -235,11 +235,10 @@ function Pane({
         active={pane.active}
         showRoot={showRoot}
         canSplit={canSplit}
-        zoom={pane.zoom ?? 1}
         onSelect={onTabSelect}
         onClose={onTabClose}
         onSplit={onSplit}
-        onZoom={onZoom}
+        onClosePane={onClosePane}
         onTabDrop={onTabDrop}
       />
       <div

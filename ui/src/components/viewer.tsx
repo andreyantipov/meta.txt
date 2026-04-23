@@ -21,10 +21,10 @@ type Props = {
   onStatsChange: (stats: DocStats | null) => void;
   onOpenPalette: () => void;
   onPaneFocus: (idx: number) => void;
-  onPaneZoom: (idx: number, delta: -1 | 0 | 1) => void;
   onTabSelect: (paneIdx: number, ref: DocRef) => void;
   onTabClose: (paneIdx: number, ref: DocRef) => void;
   onSplit: (fromPaneIdx: number) => void;
+  onClosePane: (paneIdx: number) => void;
   onTabMove: (
     fromPaneIndex: number,
     toPaneIndex: number,
@@ -45,10 +45,10 @@ export function Viewer({
   onStatsChange,
   onOpenPalette,
   onPaneFocus,
-  onPaneZoom,
   onTabSelect,
   onTabClose,
   onSplit,
+  onClosePane,
   onTabMove,
   mod,
 }: Props) {
@@ -109,10 +109,10 @@ export function Viewer({
           activePaneIndex={activePaneIndex}
           showRoot={showRoot}
           onPaneFocus={onPaneFocus}
-          onPaneZoom={onPaneZoom}
           onTabSelect={onTabSelect}
           onTabClose={onTabClose}
           onSplit={onSplit}
+          onClosePane={onClosePane}
           onTabMove={onTabMove}
           onStatsChange={onStatsChange}
         />
