@@ -189,23 +189,26 @@ export default function App() {
   }, [activePaneIndex]);
 
   const active = panes[activePaneIndex]?.active ?? null;
-  const activePaneZoom = panes[activePaneIndex]?.zoom ?? 1;
+
+  const stepPaneZoom = useCallback((paneIdx: number, delta: -1 | 0 | 1) => {
+    setPanes((prev) => {
+      if (paneIdx < 0 || paneIdx >= prev.length) return prev;
+      const pane = prev[paneIdx]!;
+      const cur = pane.zoom ?? 1;
+      const nextZoom = delta === 0 ? 1 : stepZoom(cur, delta);
+      if (nextZoom === cur) return prev;
+      const next = [...prev];
+      next[paneIdx] = { ...pane, zoom: nextZoom };
+      return next;
+    });
+  }, []);
 
   const stepActivePaneZoom = useCallback(
     (delta: -1 | 0 | 1) => {
-      setPanes((prev) => {
-        const idx = Math.min(activePaneIndex, prev.length - 1);
-        const pane = prev[idx];
-        if (!pane) return prev;
-        const cur = pane.zoom ?? 1;
-        const nextZoom = delta === 0 ? 1 : stepZoom(cur, delta);
-        if (nextZoom === cur) return prev;
-        const next = [...prev];
-        next[idx] = { ...pane, zoom: nextZoom };
-        return next;
-      });
+      const idx = Math.min(activePaneIndex, panes.length - 1);
+      stepPaneZoom(idx, delta);
     },
-    [activePaneIndex],
+    [activePaneIndex, panes.length, stepPaneZoom],
   );
 
   const openDoc = useCallback(
@@ -553,6 +556,7 @@ export default function App() {
               onStatsChange={handleStatsChange}
               onOpenPalette={() => setPaletteOpen(true)}
               onPaneFocus={handlePaneFocus}
+              onPaneZoom={stepPaneZoom}
               onTabSelect={handleTabSelect}
               onTabClose={handleTabClose}
               onSplit={handleSplit}
@@ -571,10 +575,6 @@ export default function App() {
         roots={roots}
         active={active}
         stats={docStats}
-        zoom={activePaneZoom}
-        onZoomIn={() => stepActivePaneZoom(1)}
-        onZoomOut={() => stepActivePaneZoom(-1)}
-        onZoomReset={() => stepActivePaneZoom(0)}
       />
       <CommandPalette
         open={paletteOpen}

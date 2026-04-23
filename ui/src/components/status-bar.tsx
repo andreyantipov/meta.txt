@@ -1,7 +1,5 @@
-import { Minus, Plus } from "@phosphor-icons/react";
 import type { DocStats } from "@/components/viewer";
 import type { DocRef, RootEntry } from "@/lib/api";
-import { cn } from "@/lib/utils";
 
 const CONTEXT_BUDGETS: Array<{ label: string; tokens: number }> = [
   { label: "Sonnet 200k", tokens: 200_000 },
@@ -27,22 +25,9 @@ type Props = {
   roots: RootEntry[];
   active: DocRef | null;
   stats: DocStats | null;
-  zoom: number;
-  onZoomIn: () => void;
-  onZoomOut: () => void;
-  onZoomReset: () => void;
 };
 
-export function StatusBar({
-  version,
-  roots,
-  active,
-  stats,
-  zoom,
-  onZoomIn,
-  onZoomOut,
-  onZoomReset,
-}: Props) {
+export function StatusBar({ version, roots, active, stats }: Props) {
   const totalFiles = roots.reduce((s, r) => s + r.files.length, 0);
   const rootLabel =
     roots.length === 0
@@ -105,39 +90,6 @@ export function StatusBar({
               </span>
             );
           })}
-        </div>
-      )}
-
-      {active && (
-        <div className="flex shrink-0 items-center gap-0.5">
-          <Sep />
-          <button
-            type="button"
-            onClick={onZoomOut}
-            title="Zoom out (⌘−)"
-            className="flex size-4 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-          >
-            <Minus className="size-2.5" weight="bold" />
-          </button>
-          <button
-            type="button"
-            onClick={onZoomReset}
-            title="Reset zoom (⌘0)"
-            className={cn(
-              "min-w-[34px] rounded px-1 text-center font-mono tabular-nums hover:bg-foreground/10 hover:text-foreground",
-              zoom !== 1 && "text-foreground",
-            )}
-          >
-            {Math.round(zoom * 100)}%
-          </button>
-          <button
-            type="button"
-            onClick={onZoomIn}
-            title="Zoom in (⌘=)"
-            className="flex size-4 items-center justify-center rounded text-muted-foreground hover:bg-foreground/10 hover:text-foreground"
-          >
-            <Plus className="size-2.5" weight="bold" />
-          </button>
         </div>
       )}
     </footer>
