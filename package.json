@@ -1,5 +1,5 @@
 {
-  "name": "knol",
+  "name": "@andreiantipov/knol",
   "version": "0.1.0",
   "description": "Minimal markdown docs viewer — bunx knol and browse .md files in your project",
   "type": "module",
@@ -20,7 +20,7 @@
     "build:bin": "bun build --compile --target=bun --outfile=dist/knol bin/knol.ts",
     "build": "bun run build:ui && bun run build:bin",
     "start": "bun run bin/knol.ts",
-    "release": "bun run build:ui && npm publish"
+    "release": "bun run build:ui && npm publish --access public"
   },
   "repository": {
     "type": "git",
