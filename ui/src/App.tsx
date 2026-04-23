@@ -34,10 +34,19 @@ function refExists(roots: RootEntry[], ref: DocRef): boolean {
   return !!r && r.files.includes(ref.path);
 }
 
+const README_RE = /^readme\.(md|mdx|markdown|txt)$/i;
+
 function firstRef(roots: RootEntry[]): DocRef | null {
   for (const r of roots) {
-    const readme = r.files.find((f) => /readme/i.test(f));
-    if (readme) return { root: r.name, path: readme };
+    const rootReadme = r.files.find((f) => README_RE.test(f));
+    if (rootReadme) return { root: r.name, path: rootReadme };
+  }
+  for (const r of roots) {
+    const anyReadme = r.files.find((f) => {
+      const base = f.slice(f.lastIndexOf("/") + 1);
+      return README_RE.test(base);
+    });
+    if (anyReadme) return { root: r.name, path: anyReadme };
   }
   for (const r of roots) {
     if (r.files.length > 0) return { root: r.name, path: r.files[0]! };
