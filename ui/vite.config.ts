@@ -15,7 +15,7 @@ export default defineConfig({
     strictPort: false,
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:4242",
+        target: `http://127.0.0.1:${process.env.META_DEV_API_PORT || 4242}`,
         ws: true,
       },
     },
