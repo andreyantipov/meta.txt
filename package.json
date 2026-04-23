@@ -19,7 +19,8 @@
     "build:ui": "cd ui && bun run build",
     "build:bin": "bun build --compile --target=bun --outfile=dist/knol bin/knol.ts",
     "build": "bun run build:ui && bun run build:bin",
-    "start": "bun run bin/knol.ts"
+    "start": "bun run bin/knol.ts",
+    "release": "bun run build:ui && npm publish"
   },
   "repository": {
     "type": "git",
