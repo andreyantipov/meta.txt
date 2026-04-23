@@ -31,7 +31,7 @@ type Props = {
 };
 
 const GUIDE_CLASS =
-  "pointer-events-none absolute w-px text-foreground/20";
+  "pointer-events-none absolute w-px text-foreground/[0.17]";
 
 export function TreeGuides({
   depth,
@@ -64,7 +64,9 @@ export function TreeGuides({
           ...GUIDE_VERT_STYLE,
           left: x,
           top: 0,
-          height: halfOnly ? "50%" : "100%",
+          // halfOnly: extend a hair past 50% so the dot at the row's
+          // mid-line renders and meets the horizontal stub cleanly.
+          height: halfOnly ? "calc(50% + 1px)" : "100%",
         }}
       />,
     );
@@ -77,7 +79,7 @@ export function TreeGuides({
       <span
         key="h"
         aria-hidden
-        className="pointer-events-none absolute top-1/2 h-px text-foreground/20"
+        className="pointer-events-none absolute top-1/2 h-px text-foreground/[0.17]"
         style={{ ...GUIDE_HORIZ_STYLE, left: x + 1, width: stubWidth }}
       />,
     );

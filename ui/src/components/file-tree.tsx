@@ -1,8 +1,17 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { CaretRight, FileText, Folder, FolderOpen } from "@phosphor-icons/react";
-import { cn } from "@/lib/utils";
-import { TreeGuides } from "@/lib/tree-guides";
+import {
+  CaretDown,
+  CaretRight,
+  FileText,
+  Folder,
+  FolderOpen,
+} from "@phosphor-icons/react";
+import {
+  TreeRow,
+  TREE_BASE_PAD,
+  TREE_CHEV_COL,
+} from "@/components/tree-row";
 import type { DocRef, RootEntry } from "@/lib/api";
 
 type TreeNode = {
@@ -12,11 +21,6 @@ type TreeNode = {
   children: TreeNode[];
 };
 
-const BASE_PAD = 8;
-const INDENT = 14;
-const CHEV_HALF = 7;
-const STUB = INDENT - CHEV_HALF;
-const ICON_COL = 18;
 const ROW_HEIGHT = 24;
 
 type FlatRow =
@@ -334,15 +338,19 @@ const Row = memo(function Row({
         type="button"
         onClick={() => onToggleRoot(row.rootName)}
         title={row.rootPath}
-        className="flex h-full w-full items-center gap-1.5 rounded-md pr-2 text-left text-xs font-semibold uppercase tracking-wider text-sidebar-foreground hover:bg-sidebar-accent"
-        style={{ paddingLeft: BASE_PAD }}
+        className="flex h-full w-full items-center gap-1 pr-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+        style={{ paddingLeft: TREE_BASE_PAD }}
       >
-        <CaretRight
-          className={cn(
-            "size-3.5 shrink-0 text-muted-foreground transition-transform",
-            row.open && "rotate-90",
+        <span
+          className="flex shrink-0 items-center justify-center"
+          style={{ width: TREE_CHEV_COL }}
+        >
+          {row.open ? (
+            <CaretDown className="size-2.5" weight="bold" />
+          ) : (
+            <CaretRight className="size-2.5" weight="bold" />
           )}
-        />
+        </span>
         <span className="truncate">{row.rootName}</span>
       </button>
     );
@@ -351,8 +359,8 @@ const Row = memo(function Row({
   if (row.kind === "empty") {
     return (
       <div
-        className="flex h-full items-center text-[11px] italic text-muted-foreground"
-        style={{ paddingLeft: BASE_PAD + 18 }}
+        className="flex h-full items-center text-[12px] italic text-muted-foreground/70"
+        style={{ paddingLeft: TREE_BASE_PAD + TREE_CHEV_COL + 4 }}
       >
         empty
       </div>
@@ -361,68 +369,36 @@ const Row = memo(function Row({
 
   if (row.kind === "dir") {
     return (
-      <button
-        type="button"
+      <TreeRow
+        depth={row.depth}
+        lastMask={row.lastMask}
+        hasOpenChildren={row.hasOpenChildren}
+        indicator={
+          row.open ? (
+            <FolderOpen className="size-3.5" weight="duotone" />
+          ) : (
+            <Folder className="size-3.5" weight="duotone" />
+          )
+        }
         onClick={() => onToggleDir(row.rootName, row.path)}
-        className="relative flex h-full w-full items-center gap-1.5 rounded-md pr-2 text-left text-[13px] text-sidebar-foreground hover:bg-foreground/5 hover:text-sidebar-accent-foreground"
-        style={{ paddingLeft: BASE_PAD + row.depth * INDENT }}
       >
-        <TreeGuides
-          depth={row.depth}
-          lastMask={row.lastMask}
-          hasOpenChildren={row.hasOpenChildren}
-          basePad={BASE_PAD}
-          indent={INDENT}
-          chevHalf={CHEV_HALF}
-          stubWidth={STUB - 1}
-        />
-        <CaretRight
-          className={cn(
-            "size-3.5 shrink-0 text-muted-foreground transition-transform",
-            row.open && "rotate-90",
-          )}
-        />
-        {row.open ? (
-          <FolderOpen className="size-3 shrink-0 text-muted-foreground" />
-        ) : (
-          <Folder className="size-3 shrink-0 text-muted-foreground" />
-        )}
-        <span className="truncate">{row.name}</span>
-      </button>
+        {row.name}
+      </TreeRow>
     );
   }
 
   return (
-    <button
-      type="button"
-      onClick={() => onSelect({ root: row.rootName, path: row.path })}
+    <TreeRow
+      depth={row.depth}
+      lastMask={row.lastMask}
+      hasOpenChildren={false}
+      indicator={<FileText className="size-3.5 opacity-90" weight="duotone" />}
+      active={isActive}
       title={row.path}
-      className={cn(
-        "relative flex h-full w-full items-center gap-1.5 rounded-md pr-2 text-left text-[13px]",
-        "hover:bg-foreground/5",
-        isActive && "bg-foreground/10 text-foreground",
-      )}
-      style={{
-        paddingLeft: BASE_PAD + row.depth * INDENT + ICON_COL,
-      }}
+      onClick={() => onSelect({ root: row.rootName, path: row.path })}
     >
-      <TreeGuides
-        depth={row.depth}
-        lastMask={row.lastMask}
-        hasOpenChildren={false}
-        basePad={BASE_PAD}
-        indent={INDENT}
-        chevHalf={CHEV_HALF}
-        stubWidth={STUB + ICON_COL - 3}
-      />
-      <FileText
-        className={cn(
-          "size-3 shrink-0",
-          isActive ? "text-foreground" : "text-muted-foreground",
-        )}
-      />
-      <span className="truncate">{row.name}</span>
-    </button>
+      {row.name}
+    </TreeRow>
   );
 });
 

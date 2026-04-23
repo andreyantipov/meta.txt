@@ -158,7 +158,7 @@ function SidebarBody({ roots, active, onSelect }: BodyProps) {
 
   if (!hasOutline) {
     return (
-      <nav className="min-h-0 flex-1 px-1.5">
+      <nav className="min-h-0 flex-1">
         <FileTree roots={roots} active={active} onSelect={onSelect} />
       </nav>
     );
@@ -172,7 +172,7 @@ function SidebarBody({ roots, active, onSelect }: BodyProps) {
       className="min-h-0 flex-1"
     >
       <ResizablePanel id="files" defaultSize={65} minSize={20}>
-        <nav className="h-full min-h-0 px-1.5">
+        <nav className="h-full min-h-0">
           <FileTree roots={roots} active={active} onSelect={onSelect} />
         </nav>
       </ResizablePanel>

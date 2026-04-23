@@ -3,8 +3,7 @@ import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import type { DocRef } from "@/lib/api";
 import type { Heading } from "@/lib/toc";
 import { useOutline } from "@/lib/outlines";
-import { TreeGuides } from "@/lib/tree-guides";
-import { cn } from "@/lib/utils";
+import { TreeRow, TreeLeafDot } from "@/components/tree-row";
 
 type OutlineNode = {
   heading: Heading;
@@ -31,12 +30,6 @@ function buildTree(headings: Heading[]): OutlineNode[] {
   }
   return roots;
 }
-
-const BASE_PAD = 8;
-const INDENT = 14;
-const CHEV_COL = 14;
-const CHEV_HALF = 7;
-const STUB = INDENT - CHEV_HALF;
 
 type Props = {
   active: DocRef | null;
@@ -127,53 +120,38 @@ const TreeNodeView = memo(function TreeNodeView({
   const hasChildren = node.children.length > 0;
   const isCollapsed = collapsedIds.has(node.heading.id);
   const hasOpenChildren = hasChildren && !isCollapsed;
-  const padLeft = BASE_PAD + depth * INDENT;
+
+  const indicator = hasChildren ? (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggleNode(node.heading.id);
+      }}
+      className="flex size-3.5 items-center justify-center text-muted-foreground/70 hover:text-foreground"
+    >
+      {isCollapsed ? (
+        <CaretRight className="size-2.5" weight="bold" />
+      ) : (
+        <CaretDown className="size-2.5" weight="bold" />
+      )}
+    </button>
+  ) : (
+    <TreeLeafDot />
+  );
 
   return (
     <li>
-      <div
-        className={cn(
-          "group/row relative flex h-6 cursor-pointer items-center gap-1 pr-2 text-[12px] leading-none text-muted-foreground hover:bg-foreground/5 hover:text-foreground",
-        )}
-        style={{ paddingLeft: `${padLeft}px` }}
+      <TreeRow
+        depth={depth}
+        lastMask={lastMask}
+        hasOpenChildren={hasOpenChildren}
+        indicator={indicator}
+        title={node.heading.text}
         onClick={() => onSelect(node.heading.id)}
       >
-        <TreeGuides
-          depth={depth}
-          lastMask={lastMask}
-          hasOpenChildren={hasOpenChildren}
-          basePad={BASE_PAD}
-          indent={INDENT}
-          chevHalf={CHEV_HALF}
-          stubWidth={STUB - 1}
-        />
-        {hasChildren ? (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleNode(node.heading.id);
-            }}
-            className="flex size-3.5 shrink-0 items-center justify-center rounded text-muted-foreground/70 hover:text-foreground"
-            style={{ width: `${CHEV_COL}px` }}
-          >
-            {isCollapsed ? (
-              <CaretRight className="size-2.5" weight="bold" />
-            ) : (
-              <CaretDown className="size-2.5" weight="bold" />
-            )}
-          </button>
-        ) : (
-          <span
-            className="shrink-0"
-            style={{ width: `${CHEV_COL}px` }}
-            aria-hidden
-          />
-        )}
-        <span className="truncate" title={node.heading.text}>
-          {node.heading.text}
-        </span>
-      </div>
+        {node.heading.text}
+      </TreeRow>
       {hasOpenChildren && (
         <ul>
           {node.children.map((child, i) => (
