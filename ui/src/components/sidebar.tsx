@@ -1,7 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { Files, SidebarSimple } from "@phosphor-icons/react";
+import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { FileTree } from "@/components/file-tree";
 import { Outline } from "@/components/outline";
+import {
+  ResizableHandle,
+  ResizablePanel,
+  ResizablePanelGroup,
+} from "@/components/ui/resizable";
+import { useOutline } from "@/lib/outlines";
 import type { DocRef, RootEntry } from "@/lib/api";
 import { subscribe } from "@/lib/events";
 
@@ -110,14 +117,84 @@ export function Sidebar({
           </div>
         </div>
       ) : (
-        <>
-          <nav className="min-h-0 flex-1 px-1.5">
-            <FileTree roots={roots} active={active} onSelect={onSelect} />
-          </nav>
-          <Outline active={active} />
-        </>
+        <SidebarBody roots={roots} active={active} onSelect={onSelect} />
       )}
     </aside>
+  );
+}
+
+type BodyProps = {
+  roots: RootEntry[];
+  active: DocRef | null;
+  onSelect: (ref: DocRef) => void;
+};
+
+function SidebarBody({ roots, active, onSelect }: BodyProps) {
+  const headings = useOutline(active);
+  const hasOutline = !!active && headings.length > 0;
+
+  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
+    id: "meta.txt:sidebar-panels",
+    storage: typeof localStorage !== "undefined" ? localStorage : undefined,
+    panelIds: ["files", "outline"],
+  });
+
+  const outlineRef = usePanelRef();
+  const [outlineCollapsed, setOutlineCollapsed] = useState(false);
+
+  const syncCollapsed = () => {
+    const p = outlineRef.current;
+    if (!p) return;
+    setOutlineCollapsed(p.isCollapsed());
+  };
+
+  const toggleOutline = () => {
+    const p = outlineRef.current;
+    if (!p) return;
+    if (p.isCollapsed()) p.expand();
+    else p.collapse();
+    queueMicrotask(syncCollapsed);
+  };
+
+  if (!hasOutline) {
+    return (
+      <nav className="min-h-0 flex-1 px-1.5">
+        <FileTree roots={roots} active={active} onSelect={onSelect} />
+      </nav>
+    );
+  }
+
+  return (
+    <ResizablePanelGroup
+      orientation="vertical"
+      defaultLayout={defaultLayout}
+      onLayoutChanged={onLayoutChanged}
+      className="min-h-0 flex-1"
+    >
+      <ResizablePanel id="files" defaultSize={65} minSize={20}>
+        <nav className="h-full min-h-0 px-1.5">
+          <FileTree roots={roots} active={active} onSelect={onSelect} />
+        </nav>
+      </ResizablePanel>
+      <ResizableHandle />
+      <ResizablePanel
+        id="outline"
+        panelRef={outlineRef}
+        collapsible
+        collapsedSize="32px"
+        defaultSize={35}
+        minSize={15}
+        onResize={syncCollapsed}
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <Outline
+            active={active}
+            expanded={!outlineCollapsed}
+            onToggle={toggleOutline}
+          />
+        </div>
+      </ResizablePanel>
+    </ResizablePanelGroup>
   );
 }
 
