@@ -1,0 +1,45 @@
+{
+  "name": "knol",
+  "version": "0.0.1",
+  "description": "Minimal markdown docs viewer — bunx knol and browse .md files in your project",
+  "type": "module",
+  "bin": {
+    "knol": "./bin/knol.ts"
+  },
+  "files": [
+    "bin",
+    "src",
+    "ui/dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "dev:ui": "cd ui && bun run dev",
+    "dev:server": "bun run --watch bin/knol.ts",
+    "build:ui": "cd ui && bun run build",
+    "build:bin": "bun build --compile --target=bun --outfile=dist/knol bin/knol.ts",
+    "build": "bun run build:ui && bun run build:bin",
+    "start": "bun run bin/knol.ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andreyantipov/knol.git"
+  },
+  "keywords": [
+    "markdown",
+    "docs",
+    "viewer",
+    "cli"
+  ],
+  "author": "Andrey Antipov",
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.1.0"
+  },
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
