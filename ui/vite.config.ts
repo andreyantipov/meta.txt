@@ -11,7 +11,7 @@ export default defineConfig({
     },
   },
   server: {
-    port: 4243,
+    port: Number(process.env.META_DEV_PORT) || 4243,
     strictPort: false,
     proxy: {
       "/api": {
