@@ -52,7 +52,7 @@ export function Viewer({
 }: Props) {
   return (
     <div className="flex h-full flex-1 flex-col">
-      <header className="flex h-[46px] shrink-0 items-center gap-2 border-b border-border px-2 text-xs">
+      <header className="flex h-[42px] shrink-0 items-center gap-2 border-b border-border px-2 text-xs">
         {!sidebarOpen && (
           <button
             type="button"

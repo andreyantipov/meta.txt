@@ -88,7 +88,7 @@ export function Sidebar({
 
   return (
     <aside className="flex h-full min-w-0 flex-col bg-background text-foreground">
-      <div className="flex h-[46px] shrink-0 items-center justify-between border-b border-border bg-background px-3 text-xs">
+      <div className="flex h-[42px] shrink-0 items-center justify-between border-b border-border bg-background px-3 text-xs">
         <span className="font-medium text-foreground/80">Files</span>
         <button
           type="button"
@@ -181,7 +181,7 @@ function SidebarBody({ roots, active, onSelect }: BodyProps) {
         id="outline"
         panelRef={outlineRef}
         collapsible
-        collapsedSize="32px"
+        collapsedSize="42px"
         defaultSize={35}
         minSize={15}
         onResize={syncCollapsed}

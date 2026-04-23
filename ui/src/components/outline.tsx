@@ -1,5 +1,5 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { CaretDown, CaretRight, ListBullets } from "@phosphor-icons/react";
+import { CaretDown, CaretRight } from "@phosphor-icons/react";
 import type { DocRef } from "@/lib/api";
 import type { Heading } from "@/lib/toc";
 import { useOutline } from "@/lib/outlines";
@@ -74,14 +74,13 @@ export function Outline({ active, expanded, onToggle }: Props) {
         type="button"
         onClick={onToggle}
         title={expanded ? "Collapse outline" : "Expand outline"}
-        className="flex h-8 shrink-0 items-center gap-1.5 border-t border-border bg-background px-3 text-[11px] uppercase tracking-wider text-muted-foreground/80 hover:bg-muted hover:text-foreground"
+        className="flex h-[42px] shrink-0 items-center gap-1.5 bg-background px-3 text-xs font-medium text-foreground/80 hover:bg-muted"
       >
         {expanded ? (
           <CaretDown className="size-3 shrink-0" weight="bold" />
         ) : (
           <CaretRight className="size-3 shrink-0" weight="bold" />
         )}
-        <ListBullets className="size-3 shrink-0" />
         <span>Outline</span>
         <span className="ml-auto tabular-nums text-muted-foreground/60">
           {headings.length}

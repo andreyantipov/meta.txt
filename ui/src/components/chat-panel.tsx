@@ -161,7 +161,7 @@ export function ChatPanel({ active, onClose }: Props) {
 
   return (
     <div className="flex h-full min-w-0 flex-col bg-background">
-      <header className="flex h-[46px] shrink-0 items-center justify-between border-b border-border px-4 text-xs">
+      <header className="flex h-[42px] shrink-0 items-center justify-between border-b border-border px-4 text-xs">
         <div className="flex items-center gap-2">
           <StateDot state={state} />
           <span className="font-medium text-foreground">Chat</span>
