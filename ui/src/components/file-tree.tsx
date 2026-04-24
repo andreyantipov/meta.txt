@@ -275,6 +275,12 @@ export function FileTree({ roots, active, onSelect }: Props) {
     [builtTrees, rootOpen, expanded, multi],
   );
 
+  const fileCountByRoot = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of roots) m.set(r.name, r.files.length);
+    return m;
+  }, [roots]);
+
   const sections = useMemo(() => {
     if (!multi) return [];
     const out: Array<{
@@ -283,6 +289,7 @@ export function FileTree({ roots, active, onSelect }: Props) {
       open: boolean;
       rowIndex: number;
       contentSpan: number;
+      fileCount: number;
     }> = [];
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i]!;
@@ -293,6 +300,7 @@ export function FileTree({ roots, active, onSelect }: Props) {
           open: r.open,
           rowIndex: i,
           contentSpan: 0,
+          fileCount: fileCountByRoot.get(r.rootName) ?? 0,
         });
       }
     }
@@ -302,7 +310,7 @@ export function FileTree({ roots, active, onSelect }: Props) {
       out[i]!.contentSpan = nextStart - out[i]!.rowIndex - 1;
     }
     return out;
-  }, [rows, multi]);
+  }, [rows, multi, fileCountByRoot]);
 
   const rowIndexByFile = useMemo(() => {
     const m = new Map<string, number>();
@@ -426,6 +434,7 @@ export function FileTree({ roots, active, onSelect }: Props) {
                   <RootGroupHeader
                     rootName={s.name}
                     rootPath={s.path}
+                    fileCount={s.fileCount}
                     open={s.open}
                     onClick={() => handleRootClick(s.name)}
                   />
@@ -476,11 +485,13 @@ type RowProps = {
 function RootGroupHeader({
   rootName,
   rootPath,
+  fileCount,
   open,
   onClick,
 }: {
   rootName: string;
   rootPath: string;
+  fileCount: number;
   open: boolean;
   onClick: () => void;
 }) {
@@ -511,6 +522,11 @@ function RootGroupHeader({
         style={{ backgroundColor: color }}
       />
       <span className="min-w-0 flex-1 truncate">{rootName}</span>
+      {fileCount > 0 && (
+        <span className="shrink-0 text-[10px] font-normal tabular-nums tracking-normal text-muted-foreground/70">
+          {fileCount.toLocaleString()}
+        </span>
+      )}
     </button>
   );
 }

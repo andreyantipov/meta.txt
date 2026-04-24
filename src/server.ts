@@ -14,6 +14,7 @@ import {
   type ChatMessage,
 } from "./chat-history.ts";
 import { searchContent } from "./search.ts";
+import { RefIndex } from "./refs/index.ts";
 
 const IGNORED = new Set([
   "node_modules",
@@ -159,7 +160,8 @@ type Subscriber = (evt: ServerEvent) => void;
 type ServerEvent =
   | { type: "ready" }
   | { type: "docs:changed" }
-  | { type: "doc:changed"; root: string; path: string };
+  | { type: "doc:changed"; root: string; path: string }
+  | { type: "refs:changed"; root: string; path: string };
 
 function startWatcher(root: Root, emit: Subscriber) {
   const mdRe = /\.(md|mdx|markdown|txt|html?)$/i;
@@ -214,16 +216,52 @@ export function startServer(opts: ServerOptions) {
   const rootByName = new Map(roots.map((r) => [r.name, r]));
   const sockets = new Set<import("bun").ServerWebSocket<unknown>>();
 
+  const refIndex = new RefIndex();
+  refIndex.setRoots(roots);
+
   const stopFns = roots.map((r) =>
-    startWatcher(r, (evt) => {
+    startWatcher(r, async (evt) => {
       const msg = JSON.stringify(evt);
       for (const ws of sockets) {
         try {
           ws.send(msg);
         } catch {}
       }
+      if (evt.type === "doc:changed") {
+        let exists = false;
+        try {
+          const root = rootByName.get(evt.root);
+          if (root) {
+            const s = await stat(resolve(root.path, evt.path));
+            exists = s.isFile();
+          }
+        } catch {}
+        refIndex.noteFileChange(evt.root, evt.path, exists);
+        const refsMsg = JSON.stringify({
+          type: "refs:changed",
+          root: evt.root,
+          path: evt.path,
+        });
+        for (const ws of sockets) {
+          try {
+            ws.send(refsMsg);
+          } catch {}
+        }
+      }
     }),
   );
+
+  // Enumerate files per root once at startup so the index has a file list to
+  // resolve hrefs against and pre-filter backrefs scans. No parsing here —
+  // content is read lazily per query.
+  (async () => {
+    for (const r of roots) {
+      try {
+        const files = await walkMarkdown(r.path);
+        refIndex.setFiles(r.name, files);
+      } catch {}
+    }
+  })();
 
   const agent = new ACPAgent(roots[0]?.path ?? process.cwd());
   let history: ChatHistory = { messages: [] };
@@ -281,7 +319,7 @@ export function startServer(opts: ServerOptions) {
         return new Response("Upgrade failed", { status: 400 });
       }
 
-      return handleHttp(url, path, roots, rootByName, history, broadcast);
+      return handleHttp(url, path, roots, rootByName, history, broadcast, refIndex);
     },
     websocket: {
       open(ws) {
@@ -423,6 +461,7 @@ async function handleHttp(
   rootByName: Map<string, Root>,
   history: ChatHistory,
   broadcast: (msg: unknown) => void,
+  refIndex: RefIndex,
 ): Promise<Response> {
   const asset = ASSETS[path];
   if (asset) {
@@ -507,6 +546,24 @@ async function handleHttp(
     } catch {
       return new Response("Not found", { status: 404 });
     }
+  }
+
+  if (path === "/api/refs" || path === "/api/backrefs" || path === "/api/health") {
+    const rel = url.searchParams.get("path");
+    const rootName = url.searchParams.get("root") ?? roots[0]?.name;
+    if (!rel) return new Response("Missing path", { status: 400 });
+    if (!rootName) return new Response("No roots configured", { status: 404 });
+    const root = rootByName.get(rootName);
+    if (!root) return new Response("Unknown root", { status: 404 });
+    const target = resolve(root.path, rel);
+    if (!isInside(root.path, target)) {
+      return new Response("Forbidden", { status: 403 });
+    }
+    const edges =
+      path === "/api/backrefs"
+        ? await refIndex.getBackrefs(rootName, rel)
+        : await refIndex.getRefs(rootName, rel);
+    return Response.json({ edges });
   }
 
   if (path === "/api/doc") {

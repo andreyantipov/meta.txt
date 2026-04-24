@@ -56,3 +56,34 @@ export async function searchContent(
   const data = (await res.json()) as { results?: ContentHit[] };
   return data.results ?? [];
 }
+
+export type EdgeKind = "link" | "ref" | "mention";
+export type EdgeStatus =
+  | "ok"
+  | "broken-target"
+  | "broken-anchor"
+  | "out-of-scope";
+
+export type Edge = {
+  from: { root: string; path: string; line?: number };
+  to: { root: string; path: string; anchor?: string };
+  kind: EdgeKind;
+  status: EdgeStatus;
+  context?: string;
+};
+
+export async function fetchRefs(ref: DocRef): Promise<Edge[]> {
+  const qs = new URLSearchParams({ root: ref.root, path: ref.path });
+  const res = await fetch(`/api/refs?${qs}`);
+  if (!res.ok) return [];
+  const data = (await res.json()) as { edges?: Edge[] };
+  return data.edges ?? [];
+}
+
+export async function fetchBackrefs(ref: DocRef): Promise<Edge[]> {
+  const qs = new URLSearchParams({ root: ref.root, path: ref.path });
+  const res = await fetch(`/api/backrefs?${qs}`);
+  if (!res.ok) return [];
+  const data = (await res.json()) as { edges?: Edge[] };
+  return data.edges ?? [];
+}

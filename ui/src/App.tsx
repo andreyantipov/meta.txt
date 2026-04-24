@@ -20,6 +20,7 @@ import {
   type RootEntry,
 } from "@/lib/api";
 import { subscribe } from "@/lib/events";
+import { invalidateRefs } from "@/lib/refs";
 
 function encodeRef(ref: DocRef): string {
   return `${encodeURIComponent(ref.root)}/${encodeURIComponent(ref.path)}`;
@@ -277,6 +278,16 @@ export default function App() {
     [activePaneIndex],
   );
 
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent<DocRef>;
+      if (!ce.detail?.root || !ce.detail?.path) return;
+      openDoc(ce.detail);
+    };
+    window.addEventListener("meta-open-ref", handler);
+    return () => window.removeEventListener("meta-open-ref", handler);
+  }, [openDoc]);
+
   const handleTabSelect = useCallback((paneIdx: number, ref: DocRef) => {
     setActivePaneIndex(paneIdx);
     setPanes((prev) => {
@@ -478,6 +489,9 @@ export default function App() {
     load(true);
     const unsub = subscribe((evt) => {
       if (evt.type === "docs:changed") load(false);
+      else if (evt.type === "refs:changed") {
+        invalidateRefs();
+      }
     });
     return () => {
       cancelled = true;

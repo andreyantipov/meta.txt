@@ -1,6 +1,6 @@
 {
   "name": "meta.txt",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "llms.txt, but for your repo — a living markdown knowledge base browsable via npx meta.txt",
   "type": "module",
   "bin": {
@@ -48,6 +48,8 @@
     "typescript": "^5"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^0.19.2"
+    "@agentclientprotocol/sdk": "^0.19.2",
+    "gray-matter": "^4.0.3",
+    "node-html-parser": "^7.1.0"
   }
 }

@@ -5,6 +5,7 @@ import type { Heading } from "@/lib/toc";
 import { useOutline } from "@/lib/outlines";
 import { useShortcut } from "@/lib/keymap";
 import { TreeRow, TreeLeafDot } from "@/components/tree-row";
+import { CountBadge } from "@/components/count-badge";
 
 type OutlineNode = {
   heading: Heading;
@@ -86,18 +87,21 @@ export function Outline({ active, expanded, onToggle }: Props) {
           <CaretRight className="size-3 shrink-0" weight="bold" />
         )}
         <span>Outline</span>
-        {outlineSc.parts.length > 0 && (
-          <span className="shortcut-hint pointer-events-none ml-auto shrink-0 items-center gap-0.5">
-            {outlineSc.parts.map((p, i) => (
-              <kbd
-                key={i}
-                className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none text-muted-foreground"
-              >
-                {p}
-              </kbd>
-            ))}
-          </span>
-        )}
+        <span className="ml-auto flex items-center gap-1.5">
+          {headings.length > 0 && <CountBadge count={headings.length} />}
+          {outlineSc.parts.length > 0 && (
+            <span className="shortcut-hint pointer-events-none shrink-0 items-center gap-0.5">
+              {outlineSc.parts.map((p, i) => (
+                <kbd
+                  key={i}
+                  className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none text-muted-foreground"
+                >
+                  {p}
+                </kbd>
+              ))}
+            </span>
+          )}
+        </span>
       </button>
       {expanded &&
         (hasHeadings ? (

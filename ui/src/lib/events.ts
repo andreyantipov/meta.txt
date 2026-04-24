@@ -10,6 +10,7 @@ export type ServerEvent =
   | { type: "ready" }
   | { type: "docs:changed" }
   | { type: "doc:changed"; root: string; path: string }
+  | { type: "refs:changed"; root: string; path: string }
   | {
       type: "scan:start";
       roots: Array<{ name: string; path: string }>;

@@ -3,6 +3,8 @@ import { Files, SidebarSimple } from "@phosphor-icons/react";
 import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
 import { FileTree } from "@/components/file-tree";
 import { Outline } from "@/components/outline";
+import { SidebarReferences } from "@/components/sidebar-references";
+import { useRefsSummary } from "@/lib/refs";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -144,25 +146,33 @@ type BodyProps = {
 
 function SidebarBody({ roots, active, onSelect }: BodyProps) {
   const outlineRef = usePanelRef();
+  const refsRef = usePanelRef();
   const [outlineCollapsed, setOutlineCollapsed] = useState(false);
+  const [refsCollapsed, setRefsCollapsed] = useState(false);
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "meta.txt:sidebar-panels:v3",
-    panelIds: ["files", "outline"],
+    id: "meta.txt:sidebar-panels:v4",
+    panelIds: ["files", "outline", "refs"],
     storage: typeof window === "undefined" ? undefined : window.localStorage,
   });
 
-  const toggleOutline = () => {
-    const p = outlineRef.current;
+  const togglePanel = (
+    panelRef: ReturnType<typeof usePanelRef>,
+    expandTo: number,
+  ) => {
+    const p = panelRef.current;
     if (!p) return;
     if (p.isCollapsed()) {
       p.expand();
       queueMicrotask(() => {
-        if (p.isCollapsed() || p.getSize().asPercentage < 15) p.resize(35);
+        if (p.isCollapsed() || p.getSize().asPercentage < 15) p.resize(expandTo);
       });
     } else {
       p.collapse();
     }
   };
+
+  const toggleOutline = () => togglePanel(outlineRef, 30);
+  const toggleRefs = () => togglePanel(refsRef, 30);
 
   useEffect(() => {
     const handler = () => toggleOutline();
@@ -170,15 +180,28 @@ function SidebarBody({ roots, active, onSelect }: BodyProps) {
     return () => window.removeEventListener("meta:outline-toggle", handler);
   }, []);
 
+  // Auto-collapse References when the active doc has zero edges. Only fires
+  // after the summary flips to `loaded: true` — otherwise we'd collapse during
+  // the initial fetch and leave the user with an empty panel even though
+  // results were arriving. We never force-expand: if the user manually
+  // collapsed, their choice is respected.
+  const refsSummary = useRefsSummary(active);
+  useEffect(() => {
+    if (!active || !refsSummary.loaded) return;
+    if (refsSummary.total === 0) {
+      refsRef.current?.collapse();
+    }
+  }, [active?.root, active?.path, refsSummary.loaded, refsSummary.total]);
+
   return (
     <ResizablePanelGroup
       orientation="vertical"
-      id="meta.txt:sidebar-panels:v3"
+      id="meta.txt:sidebar-panels:v4"
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
       className="min-h-0 flex-1"
     >
-      <ResizablePanel id="files" defaultSize={65} minSize={20}>
+      <ResizablePanel id="files" defaultSize={50} minSize={15}>
         <nav className="h-full min-h-0">
           <FileTree roots={roots} active={active} onSelect={onSelect} />
         </nav>
@@ -189,7 +212,7 @@ function SidebarBody({ roots, active, onSelect }: BodyProps) {
         panelRef={outlineRef}
         collapsible
         collapsedSize="42px"
-        defaultSize={35}
+        defaultSize={25}
         minSize={15}
         onResize={() => {
           const p = outlineRef.current;
@@ -201,6 +224,27 @@ function SidebarBody({ roots, active, onSelect }: BodyProps) {
             active={active}
             expanded={!outlineCollapsed}
             onToggle={toggleOutline}
+          />
+        </div>
+      </ResizablePanel>
+      <ResizableHandle />
+      <ResizablePanel
+        id="refs"
+        panelRef={refsRef}
+        collapsible
+        collapsedSize="42px"
+        defaultSize={25}
+        minSize={15}
+        onResize={() => {
+          const p = refsRef.current;
+          if (p) setRefsCollapsed(p.isCollapsed());
+        }}
+      >
+        <div className="flex h-full min-h-0 flex-col">
+          <SidebarReferences
+            active={active}
+            expanded={!refsCollapsed}
+            onToggle={toggleRefs}
           />
         </div>
       </ResizablePanel>

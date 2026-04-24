@@ -6,10 +6,11 @@ import {
   type DragEvent,
   type MouseEvent,
 } from "react";
-import { FileText, SplitHorizontal, X } from "@phosphor-icons/react";
+import { ArrowBendDownLeft, FileText, SplitHorizontal, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { DocRef } from "@/lib/api";
 import { rootColor } from "@/lib/root-color";
+import { useBackrefs } from "@/lib/refs";
 
 export const TAB_MIME = "application/x-meta-tab";
 
@@ -198,6 +199,8 @@ const Tab = memo(function Tab({
   const name = basename(tab.path);
   const title = showRoot ? `${tab.root}/${tab.path}` : tab.path;
   const color = showRoot ? rootColor(tab.root) : null;
+  const backrefs = useBackrefs(tab);
+  const backCount = backrefs.length;
 
   const handleClose = useCallback(
     (e: MouseEvent) => {
@@ -274,6 +277,15 @@ const Tab = memo(function Tab({
         />
       )}
       <span className="truncate">{name}</span>
+      {backCount > 0 && (
+        <span
+          className="flex shrink-0 items-center gap-0.5 text-[10px] text-muted-foreground/80"
+          title={`${backCount} incoming reference${backCount === 1 ? "" : "s"}`}
+        >
+          <ArrowBendDownLeft className="size-2.5" />
+          {backCount}
+        </span>
+      )}
       <button
         type="button"
         onClick={handleClose}
