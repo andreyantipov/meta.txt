@@ -6,7 +6,7 @@ import {
 import { SplitViewer, type PaneState } from "@/components/split-viewer";
 import type { DocStats } from "@/components/doc-content";
 import type { DocRef } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { useShortcut } from "@/lib/keymap";
 
 export type { DocStats } from "@/components/doc-content";
 
@@ -31,7 +31,7 @@ type Props = {
     ref: DocRef,
     insertIndex: number,
   ) => void;
-  mod: string;
+  onTabDropNewPane: (fromPaneIndex: number, ref: DocRef) => void;
 };
 
 export function Viewer({
@@ -50,8 +50,12 @@ export function Viewer({
   onSplit,
   onClosePane,
   onTabMove,
-  mod,
+  onTabDropNewPane,
 }: Props) {
+  const paletteSc = useShortcut("palette.toggle");
+  const sidebarSc = useShortcut("sidebar.toggle");
+  const chatSc = useShortcut("chat.toggle");
+
   return (
     <div className="flex h-full flex-1 flex-col">
       <header className="flex h-[42px] shrink-0 items-center gap-2 border-b border-border px-2 text-xs">
@@ -59,10 +63,23 @@ export function Viewer({
           <button
             type="button"
             onClick={onToggleSidebar}
-            title="Expand sidebar (⌘B)"
-            className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            title={sidebarSc.title ? `Expand sidebar (${sidebarSc.title})` : "Expand sidebar"}
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-input bg-transparent px-2 text-[12px] text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
           >
             <SidebarSimple className="size-3.5" />
+            <span>Files</span>
+            {sidebarSc.parts.length > 0 && (
+              <span className="shortcut-hint pointer-events-none shrink-0 items-center gap-0.5">
+                {sidebarSc.parts.map((p, i) => (
+                  <kbd
+                    key={i}
+                    className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none"
+                  >
+                    {p}
+                  </kbd>
+                ))}
+              </span>
+            )}
           </button>
         )}
 
@@ -76,31 +93,44 @@ export function Viewer({
             <span className="flex-1 truncate text-[12px]">
               Search files or content…
             </span>
-            <span className="pointer-events-none flex shrink-0 items-center gap-0.5">
-              <kbd className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none">
-                {mod}
-              </kbd>
-              <kbd className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none">
-                K
-              </kbd>
-            </span>
+            {paletteSc.parts.length > 0 && (
+              <span className="shortcut-hint pointer-events-none shrink-0 items-center gap-0.5">
+                {paletteSc.parts.map((p, i) => (
+                  <kbd
+                    key={i}
+                    className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none"
+                  >
+                    {p}
+                  </kbd>
+                ))}
+              </span>
+            )}
           </button>
         </div>
 
-        <button
-          type="button"
-          onClick={onToggleChat}
-          title="Toggle chat (⌘J)"
-          className={cn(
-            "flex shrink-0 items-center gap-1.5 rounded-md px-2 py-1 text-xs transition-colors",
-            chatOpen
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground",
-          )}
-        >
-          <ChatCircleText className="size-3.5" />
-          <span>Chat</span>
-        </button>
+        {!chatOpen && (
+          <button
+            type="button"
+            onClick={onToggleChat}
+            title={chatSc.title ? `Open chat (${chatSc.title})` : "Open chat"}
+            className="flex h-7 shrink-0 items-center gap-1.5 rounded-md border border-input bg-transparent px-2 text-[12px] text-muted-foreground transition-colors hover:border-ring hover:text-foreground"
+          >
+            <ChatCircleText className="size-3.5" />
+            <span>Chat</span>
+            {chatSc.parts.length > 0 && (
+              <span className="shortcut-hint pointer-events-none shrink-0 items-center gap-0.5">
+                {chatSc.parts.map((p, i) => (
+                  <kbd
+                    key={i}
+                    className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none"
+                  >
+                    {p}
+                  </kbd>
+                ))}
+              </span>
+            )}
+          </button>
+        )}
       </header>
 
       <div className="min-h-0 flex-1">
@@ -114,6 +144,7 @@ export function Viewer({
           onSplit={onSplit}
           onClosePane={onClosePane}
           onTabMove={onTabMove}
+          onTabDropNewPane={onTabDropNewPane}
           onStatsChange={onStatsChange}
         />
       </div>

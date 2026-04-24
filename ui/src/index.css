@@ -119,6 +119,8 @@
 @layer components {
   .markdown-body {
     @apply text-sm leading-relaxed;
+    overflow-wrap: anywhere;
+    word-break: break-word;
   }
   .markdown-body h1 {
     @apply mt-8 mb-4 border-b border-border pb-2 text-3xl font-semibold tracking-tight;
@@ -192,5 +194,14 @@
   }
   .markdown-body .mermaid-error {
     @apply my-4 rounded-md border border-destructive/40 bg-destructive/5 px-3 py-2 font-mono text-xs text-destructive;
+  }
+
+  /* Inline keyboard-shortcut hints only reveal while the Alt / Option key is
+     held. The full list is always available in the command centre (⇧?). */
+  .shortcut-hint {
+    display: none;
+  }
+  html[data-shortcut-hints] .shortcut-hint {
+    display: inline-flex;
   }
 }

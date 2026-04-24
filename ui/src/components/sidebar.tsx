@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Files, SidebarSimple } from "@phosphor-icons/react";
-import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
+import { usePanelRef } from "react-resizable-panels";
 import { FileTree } from "@/components/file-tree";
 import { Outline } from "@/components/outline";
 import {
@@ -8,9 +8,9 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { useOutline } from "@/lib/outlines";
 import type { DocRef, RootEntry } from "@/lib/api";
 import { subscribe } from "@/lib/events";
+import { useShortcut } from "@/lib/keymap";
 
 type ScanState = {
   roots: Array<{
@@ -37,6 +37,7 @@ export function Sidebar({
   onSelect,
   onClose,
 }: Props) {
+  const sidebarSc = useShortcut("sidebar.toggle");
   const totalFiles = useMemo(
     () => roots.reduce((s, r) => s + r.files.length, 0),
     [roots],
@@ -93,10 +94,22 @@ export function Sidebar({
         <button
           type="button"
           onClick={onClose}
-          title="Collapse sidebar (⌘B)"
-          className="shrink-0 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+          title={sidebarSc.title ? `Collapse sidebar (${sidebarSc.title})` : "Collapse sidebar"}
+          className="flex shrink-0 items-center gap-1 rounded p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
         >
           <SidebarSimple className="size-3.5" />
+          {sidebarSc.parts.length > 0 && (
+            <span className="shortcut-hint pointer-events-none shrink-0 items-center gap-0.5">
+              {sidebarSc.parts.map((p, i) => (
+                <kbd
+                  key={i}
+                  className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none"
+                >
+                  {p}
+                </kbd>
+              ))}
+            </span>
+          )}
         </button>
       </div>
 
@@ -130,48 +143,35 @@ type BodyProps = {
 };
 
 function SidebarBody({ roots, active, onSelect }: BodyProps) {
-  const headings = useOutline(active);
-  const hasOutline = !!active && headings.length > 0;
-
-  const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "meta.txt:sidebar-panels",
-    storage: typeof localStorage !== "undefined" ? localStorage : undefined,
-    panelIds: ["files", "outline"],
-  });
-
   const outlineRef = usePanelRef();
   const [outlineCollapsed, setOutlineCollapsed] = useState(false);
-
-  const syncCollapsed = () => {
-    const p = outlineRef.current;
-    if (!p) return;
-    setOutlineCollapsed(p.isCollapsed());
-  };
 
   const toggleOutline = () => {
     const p = outlineRef.current;
     if (!p) return;
-    if (p.isCollapsed()) p.expand();
-    else p.collapse();
-    queueMicrotask(syncCollapsed);
+    if (p.isCollapsed()) {
+      p.expand();
+      queueMicrotask(() => {
+        if (p.isCollapsed() || p.getSize() < 15) p.resize(35);
+      });
+    } else {
+      p.collapse();
+    }
   };
 
-  if (!hasOutline) {
-    return (
-      <nav className="min-h-0 flex-1">
-        <FileTree roots={roots} active={active} onSelect={onSelect} />
-      </nav>
-    );
-  }
+  useEffect(() => {
+    const handler = () => toggleOutline();
+    window.addEventListener("meta:outline-toggle", handler);
+    return () => window.removeEventListener("meta:outline-toggle", handler);
+  }, []);
 
   return (
     <ResizablePanelGroup
       orientation="vertical"
-      defaultLayout={defaultLayout}
-      onLayoutChanged={onLayoutChanged}
+      autoSaveId="meta.txt:sidebar-panels:v3"
       className="min-h-0 flex-1"
     >
-      <ResizablePanel id="files" defaultSize={65} minSize={20}>
+      <ResizablePanel id="files" order={1} defaultSize={65} minSize={20}>
         <nav className="h-full min-h-0">
           <FileTree roots={roots} active={active} onSelect={onSelect} />
         </nav>
@@ -179,12 +179,14 @@ function SidebarBody({ roots, active, onSelect }: BodyProps) {
       <ResizableHandle />
       <ResizablePanel
         id="outline"
+        order={2}
         panelRef={outlineRef}
         collapsible
         collapsedSize="42px"
         defaultSize={35}
         minSize={15}
-        onResize={syncCollapsed}
+        onCollapse={() => setOutlineCollapsed(true)}
+        onExpand={() => setOutlineCollapsed(false)}
       >
         <div className="flex h-full min-h-0 flex-col">
           <Outline

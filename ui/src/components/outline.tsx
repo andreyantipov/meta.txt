@@ -1,8 +1,9 @@
 import { memo, useEffect, useMemo, useState } from "react";
-import { CaretDown, CaretRight } from "@phosphor-icons/react";
+import { CaretDown, CaretRight, ListBullets } from "@phosphor-icons/react";
 import type { DocRef } from "@/lib/api";
 import type { Heading } from "@/lib/toc";
 import { useOutline } from "@/lib/outlines";
+import { useShortcut } from "@/lib/keymap";
 import { TreeRow, TreeLeafDot } from "@/components/tree-row";
 
 type OutlineNode = {
@@ -40,6 +41,7 @@ type Props = {
 export function Outline({ active, expanded, onToggle }: Props) {
   const headings = useOutline(active);
   const tree = useMemo(() => buildTree(headings), [headings]);
+  const outlineSc = useShortcut("outline.toggle");
 
   const [collapsedIds, setCollapsedIds] = useState<Set<string>>(new Set());
 
@@ -47,7 +49,7 @@ export function Outline({ active, expanded, onToggle }: Props) {
     setCollapsedIds(new Set());
   }, [active?.root, active?.path]);
 
-  if (!active || headings.length === 0) return null;
+  const hasHeadings = !!active && headings.length > 0;
 
   const toggleNode = (id: string) => {
     setCollapsedIds((prev) => {
@@ -69,7 +71,13 @@ export function Outline({ active, expanded, onToggle }: Props) {
       <button
         type="button"
         onClick={onToggle}
-        title={expanded ? "Collapse outline" : "Expand outline"}
+        title={
+          outlineSc.title
+            ? `${expanded ? "Collapse" : "Expand"} outline (${outlineSc.title})`
+            : expanded
+              ? "Collapse outline"
+              : "Expand outline"
+        }
         className="flex h-[42px] shrink-0 items-center gap-1.5 border-b border-border bg-background px-3 text-xs font-medium text-foreground/80 hover:bg-muted"
       >
         {expanded ? (
@@ -78,24 +86,48 @@ export function Outline({ active, expanded, onToggle }: Props) {
           <CaretRight className="size-3 shrink-0" weight="bold" />
         )}
         <span>Outline</span>
-      </button>
-      {expanded && (
-        <div className="min-h-0 flex-1 overflow-y-auto py-1">
-          <ul>
-            {tree.map((node, i) => (
-              <TreeNodeView
-                key={`${node.heading.id}-${i}`}
-                node={node}
-                depth={0}
-                lastMask={[i === tree.length - 1]}
-                collapsedIds={collapsedIds}
-                onToggleNode={toggleNode}
-                onSelect={scrollTo}
-              />
+        {outlineSc.parts.length > 0 && (
+          <span className="shortcut-hint pointer-events-none ml-auto shrink-0 items-center gap-0.5">
+            {outlineSc.parts.map((p, i) => (
+              <kbd
+                key={i}
+                className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none text-muted-foreground"
+              >
+                {p}
+              </kbd>
             ))}
-          </ul>
-        </div>
-      )}
+          </span>
+        )}
+      </button>
+      {expanded &&
+        (hasHeadings ? (
+          <div className="min-h-0 flex-1 overflow-y-auto py-1">
+            <ul>
+              {tree.map((node, i) => (
+                <TreeNodeView
+                  key={`${node.heading.id}-${i}`}
+                  node={node}
+                  depth={0}
+                  lastMask={[i === tree.length - 1]}
+                  collapsedIds={collapsedIds}
+                  onToggleNode={toggleNode}
+                  onSelect={scrollTo}
+                />
+              ))}
+            </ul>
+          </div>
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-2 px-4 text-center">
+            <ListBullets
+              size={28}
+              weight="duotone"
+              className="text-muted-foreground/40"
+            />
+            <div className="text-xs text-muted-foreground/70">
+              {active ? "No headings" : "No document selected"}
+            </div>
+          </div>
+        ))}
     </>
   );
 }

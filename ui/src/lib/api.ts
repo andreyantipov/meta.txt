@@ -16,6 +16,12 @@ export async function fetchDoc(ref: DocRef): Promise<string> {
   return res.text();
 }
 
+export async function fetchChangelog(): Promise<string> {
+  const res = await fetch("/api/changelog");
+  if (!res.ok) throw new Error(`failed to load changelog (${res.status})`);
+  return res.text();
+}
+
 export type GitInfo =
   | { ok: false }
   | { ok: true; branch: string | null; sha: string | null };

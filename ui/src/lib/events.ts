@@ -33,7 +33,33 @@ export type ServerEvent =
       error?: string;
     }
   | { type: "chat:message"; message: ChatMessageEvent }
-  | { type: "chat:cleared" };
+  | { type: "chat:cleared" }
+  | {
+      type: "chat:permission";
+      id: string;
+      options: Array<{
+        optionId: string;
+        name: string;
+        kind: "allow_once" | "allow_always" | "reject_once" | "reject_always";
+      }>;
+      toolCall: {
+        toolCallId: string;
+        title?: string | null;
+        kind?: string | null;
+        rawInput?: unknown;
+        content?: unknown;
+      };
+    }
+  | { type: "chat:permission-resolved"; id: string }
+  | {
+      type: "chat:modes";
+      available: Array<{
+        id: string;
+        name: string;
+        description?: string | null;
+      }>;
+      currentId: string | null;
+    };
 
 type Listener = (evt: ServerEvent) => void;
 

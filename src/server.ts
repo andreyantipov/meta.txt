@@ -2,6 +2,7 @@ import { readdir, readFile, stat } from "node:fs/promises";
 import { watch } from "node:fs";
 import { basename, join, relative, resolve, sep } from "node:path";
 import pkg from "../package.json" with { type: "json" };
+import CHANGELOG from "../CHANGELOG.md" with { type: "text" };
 import { ASSETS } from "./assets.ts";
 import { ACPAgent, type ChatEvent } from "./acp.ts";
 
@@ -266,6 +267,8 @@ export function startServer(opts: ServerOptions) {
     broadcast(evt);
   });
 
+  agent.ensureStarted().catch(() => {});
+
   const server = Bun.serve({
     port: opts.port,
     hostname: opts.host ?? "127.0.0.1",
@@ -284,6 +287,30 @@ export function startServer(opts: ServerOptions) {
       open(ws) {
         sockets.add(ws);
         ws.send(JSON.stringify({ type: "ready" }));
+        const modes = agent.getModes();
+        if (modes.available.length > 0 || modes.currentId) {
+          try {
+            ws.send(
+              JSON.stringify({
+                type: "chat:modes",
+                available: modes.available,
+                currentId: modes.currentId,
+              }),
+            );
+          } catch {}
+        }
+        for (const p of agent.getPendingPermissions()) {
+          try {
+            ws.send(
+              JSON.stringify({
+                type: "chat:permission",
+                id: p.id,
+                options: p.options,
+                toolCall: p.toolCall,
+              }),
+            );
+          } catch {}
+        }
       },
       close(ws) {
         sockets.delete(ws);
@@ -360,6 +387,24 @@ export function startServer(opts: ServerOptions) {
           history = { messages: [] };
           await saveHistory(history);
           broadcast({ type: "chat:cleared" });
+        } else if (msg.type === "chat:permission-response") {
+          const m = parsed as { id: string; optionId: string | null };
+          if (typeof m.id === "string") {
+            agent.resolvePermission(m.id, m.optionId ?? null);
+          }
+        } else if (msg.type === "chat:set-mode") {
+          const m = parsed as { modeId: string };
+          if (typeof m.modeId === "string") {
+            try {
+              await agent.setMode(m.modeId);
+            } catch (err) {
+              broadcast({
+                type: "chat:done",
+                stopReason: "error",
+                error: String((err as { message?: string })?.message ?? err),
+              });
+            }
+          }
         }
       },
     },
@@ -388,6 +433,12 @@ async function handleHttp(
 
   if (path === "/api/chat/history") {
     return Response.json(history);
+  }
+
+  if (path === "/api/changelog") {
+    return new Response(CHANGELOG, {
+      headers: { "content-type": "text/markdown; charset=utf-8" },
+    });
   }
 
   if (path === "/api/search") {

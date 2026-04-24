@@ -10,11 +10,12 @@ import { cn } from "@/lib/utils";
 import { renderMermaid } from "@/lib/mermaid";
 import {
   extractHtmlHeadings,
+  extractMarkdownHeadings,
   injectHeadingIds,
   parseMarkdown,
-  type Heading,
 } from "@/lib/toc";
 import { setOutline, clearOutline } from "@/lib/outlines";
+import { useTheme } from "@/lib/theme";
 
 export type DocKind = "markdown" | "text" | "html";
 
@@ -118,6 +119,7 @@ type Props = {
 };
 
 export function DocContent({ doc, zoom = 1, onStats }: Props) {
+  const { resolved: themeResolved } = useTheme();
   const [raw, setRaw] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -157,14 +159,49 @@ export function DocContent({ doc, zoom = 1, onStats }: Props) {
 
   const kind: DocKind = useMemo(() => kindOf(doc.path), [doc.path]);
 
-  const parsed = useMemo(
-    () =>
-      kind === "markdown" && raw
-        ? parseMarkdown(raw)
-        : { html: "", headings: [] as Heading[] },
-    [kind, raw],
-  );
-  const markdownHtml = parsed.html;
+  const [markdownHtml, setMarkdownHtml] = useState<string>("");
+
+  useEffect(() => {
+    if (kind !== "markdown") {
+      setMarkdownHtml("");
+      return;
+    }
+    if (raw === null) {
+      setMarkdownHtml("");
+      return;
+    }
+    // Fast pass: regex-scan headings so the outline appears before the full parse.
+    setOutline(doc, extractMarkdownHeadings(raw));
+
+    // Full parse runs after paint so large docs don't block the shell.
+    let cancelled = false;
+    const run = () => {
+      if (cancelled) return;
+      const { html, headings } = parseMarkdown(raw);
+      if (cancelled) return;
+      setMarkdownHtml(html);
+      setOutline(doc, headings);
+    };
+    const w = window as Window & {
+      requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      cancelIdleCallback?: (h: number) => void;
+    };
+    let handle: number;
+    if (typeof w.requestIdleCallback === "function") {
+      handle = w.requestIdleCallback(run, { timeout: 200 });
+    } else {
+      handle = window.setTimeout(run, 0);
+    }
+    return () => {
+      cancelled = true;
+      if (typeof w.cancelIdleCallback === "function") {
+        try {
+          w.cancelIdleCallback(handle);
+        } catch {}
+      }
+      clearTimeout(handle);
+    };
+  }, [kind, raw, doc.root, doc.path]);
 
   const [exactTokens, setExactTokens] = useState<number | null>(null);
 
@@ -208,16 +245,14 @@ export function DocContent({ doc, zoom = 1, onStats }: Props) {
     const controller = new AbortController();
     renderMermaid(el, controller.signal).catch(() => {});
     return () => controller.abort();
-  }, [kind, markdownHtml]);
+  }, [kind, markdownHtml, themeResolved]);
 
   useEffect(() => {
-    if (kind === "markdown" && raw !== null) {
-      setOutline(doc, parsed.headings);
-    }
+    if (kind !== "markdown") return;
     return () => {
       clearOutline(doc);
     };
-  }, [kind, raw, parsed.headings, doc.root, doc.path]);
+  }, [kind, doc.root, doc.path]);
 
   useEffect(() => {
     if (kind !== "html" || raw === null) return;
@@ -296,12 +331,16 @@ export function DocContent({ doc, zoom = 1, onStats }: Props) {
   }, [iframeFallback, raw]);
 
   if (iframeFallback) {
+    const src = themeResolved === "dark" ? withDarkTheme(raw ?? "") : (raw ?? "");
     return (
       <iframe
         ref={iframeRef}
-        srcDoc={withDarkTheme(raw ?? "")}
+        srcDoc={src}
         title={`${doc.root}/${doc.path}`}
-        className="h-full w-full border-0 bg-[#0b0b0c]"
+        className={cn(
+          "h-full w-full border-0",
+          themeResolved === "dark" ? "bg-[#0b0b0c]" : "bg-white",
+        )}
       />
     );
   }

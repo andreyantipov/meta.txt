@@ -7,6 +7,11 @@ import { CommandPalette } from "@/components/command-palette";
 import { ChatPanel } from "@/components/chat-panel";
 import { Layout } from "@/components/layout";
 import { StatusBar } from "@/components/status-bar";
+import { ShortcutsDialog } from "@/components/shortcuts-dialog";
+import { ChangelogDialog } from "@/components/changelog-dialog";
+import { matchShortcut } from "@/lib/keymap";
+import { setRootNames } from "@/lib/root-color";
+import { cmpVersion } from "@/lib/version";
 import {
   fetchDocs,
   fetchGit,
@@ -68,6 +73,7 @@ const CHAT_OPEN_KEY = "meta.txt:chat-open";
 const SIDEBAR_OPEN_KEY = "meta.txt:sidebar-open";
 const PANES_KEY = "meta.txt:panes";
 const ACTIVE_PANE_KEY = "meta.txt:active-pane";
+const LAST_SEEN_VERSION_KEY = "meta.txt:last-seen-version";
 
 const ZOOM_LEVELS = [0.7, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5, 1.75, 2.0] as const;
 
@@ -152,6 +158,9 @@ export default function App() {
   const [err, setErr] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [changelogOpen, setChangelogOpen] = useState(false);
+  const [changelogSince, setChangelogSince] = useState<string | null>(null);
   const [docStats, setDocStats] = useState<DocStats | null>(null);
   const [git, setGit] = useState<GitInfo | null>(null);
 
@@ -183,6 +192,30 @@ export default function App() {
       localStorage.setItem(SIDEBAR_OPEN_KEY, sidebarOpen ? "1" : "0");
     } catch {}
   }, [sidebarOpen]);
+
+  useEffect(() => {
+    setRootNames(roots.map((r) => r.name));
+  }, [roots]);
+
+  useEffect(() => {
+    const set = () =>
+      document.documentElement.setAttribute("data-shortcut-hints", "");
+    const unset = () =>
+      document.documentElement.removeAttribute("data-shortcut-hints");
+    const onKey = (e: KeyboardEvent) => {
+      if (e.altKey) set();
+      else unset();
+    };
+    window.addEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKey);
+    window.addEventListener("blur", unset);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKey);
+      window.removeEventListener("blur", unset);
+      unset();
+    };
+  }, []);
 
   useEffect(() => {
     try {
@@ -361,6 +394,30 @@ export default function App() {
     });
   }, []);
 
+  const handleTabDropNewPane = useCallback(
+    (fromPaneIndex: number, ref: DocRef) => {
+      setPanes((prev) => {
+        if (prev.length >= 2) return prev;
+        if (fromPaneIndex < 0 || fromPaneIndex >= prev.length) return prev;
+        const src = prev[fromPaneIndex]!;
+        if (src.tabs.length < 2) return prev;
+        const srcTabs = src.tabs.filter((t) => !sameRef(t, ref));
+        const srcActive = sameRef(src.active, ref)
+          ? srcTabs[0] ?? null
+          : src.active;
+        const next: PaneState[] = [
+          ...prev.slice(0, fromPaneIndex),
+          { ...src, tabs: srcTabs, active: srcActive },
+          ...prev.slice(fromPaneIndex + 1),
+          { tabs: [ref], active: ref, zoom: src.zoom },
+        ];
+        setActivePaneIndex(next.length - 1);
+        return next;
+      });
+    },
+    [],
+  );
+
   const handlePaneFocus = useCallback((idx: number) => {
     setActivePaneIndex((cur) => (cur === idx ? cur : idx));
   }, []);
@@ -429,6 +486,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    if (!version) return;
+    try {
+      const lastSeen = localStorage.getItem(LAST_SEEN_VERSION_KEY);
+      if (!lastSeen) {
+        localStorage.setItem(LAST_SEEN_VERSION_KEY, version);
+        return;
+      }
+      if (cmpVersion(version, lastSeen) > 0) {
+        setChangelogSince(lastSeen);
+        setChangelogOpen(true);
+        localStorage.setItem(LAST_SEEN_VERSION_KEY, version);
+      }
+    } catch {}
+  }, [version]);
+
+  useEffect(() => {
     if (active) history.replaceState(null, "", `#${encodeRef(active)}`);
   }, [active]);
 
@@ -460,76 +533,80 @@ export default function App() {
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
-      const k = e.key.toLowerCase();
-      if (mod && k === "k") {
-        e.preventDefault();
-        e.stopPropagation();
-        setPaletteOpen((v) => !v);
-      } else if (mod && k === "j") {
-        e.preventDefault();
-        e.stopPropagation();
-        setChatOpen((v) => !v);
-      } else if (mod && k === "b") {
-        e.preventDefault();
-        e.stopPropagation();
-        setSidebarOpen((v) => !v);
-      } else if (mod && k === "w") {
-        e.preventDefault();
-        e.stopPropagation();
-        setPanes((prev) => {
-          const idx = Math.min(activePaneIndex, prev.length - 1);
-          const cur = prev[idx]?.active;
-          if (!cur) return prev;
-          const pane = prev[idx]!;
-          const tabIdx = pane.tabs.findIndex((t) => sameRef(t, cur));
-          if (tabIdx === -1) return prev;
-          const tabs = pane.tabs.filter((_, i) => i !== tabIdx);
-          const nextActive = tabs[tabIdx] ?? tabs[tabIdx - 1] ?? null;
-          if (tabs.length === 0 && prev.length > 1) {
-            const next = prev.filter((_, i) => i !== idx);
-            setActivePaneIndex(0);
-            return next;
-          }
-          const next = [...prev];
-          next[idx] = { tabs, active: nextActive };
-          return next;
-        });
-      } else if (mod && (e.key === "[" || e.key === "]")) {
-        e.preventDefault();
-        e.stopPropagation();
-        setPanes((prev) => {
-          const idx = Math.min(activePaneIndex, prev.length - 1);
-          const pane = prev[idx];
-          if (!pane || pane.tabs.length < 2 || !pane.active) return prev;
-          const ai = pane.tabs.findIndex((t) => sameRef(t, pane.active));
-          if (ai === -1) return prev;
-          const n = pane.tabs.length;
-          const nextIdx =
-            e.key === "]" ? (ai + 1) % n : (ai - 1 + n) % n;
-          const next = [...prev];
-          next[idx] = { ...pane, active: pane.tabs[nextIdx]! };
-          return next;
-        });
-      } else if (mod && (e.key === "=" || e.key === "+")) {
-        e.preventDefault();
-        e.stopPropagation();
-        stepActivePaneZoom(1);
-      } else if (mod && e.key === "-") {
-        e.preventDefault();
-        e.stopPropagation();
-        stepActivePaneZoom(-1);
-      } else if (mod && e.key === "0") {
-        e.preventDefault();
-        e.stopPropagation();
-        stepActivePaneZoom(0);
-      } else if (e.key === "Escape") {
+      if (shortcutsOpen) return;
+      if (e.key === "Escape") {
         setPaletteOpen(false);
+      }
+      const id = matchShortcut(e);
+      if (!id) return;
+      e.preventDefault();
+      e.stopPropagation();
+      switch (id) {
+        case "palette.toggle":
+          setPaletteOpen((v) => !v);
+          break;
+        case "chat.toggle":
+          setChatOpen((v) => !v);
+          break;
+        case "sidebar.toggle":
+          setSidebarOpen((v) => !v);
+          break;
+        case "outline.toggle":
+          window.dispatchEvent(new CustomEvent("meta:outline-toggle"));
+          break;
+        case "shortcuts.show":
+          setShortcutsOpen(true);
+          break;
+        case "tab.close":
+          setPanes((prev) => {
+            const idx = Math.min(activePaneIndex, prev.length - 1);
+            const cur = prev[idx]?.active;
+            if (!cur) return prev;
+            const pane = prev[idx]!;
+            const tabIdx = pane.tabs.findIndex((t) => sameRef(t, cur));
+            if (tabIdx === -1) return prev;
+            const tabs = pane.tabs.filter((_, i) => i !== tabIdx);
+            const nextActive = tabs[tabIdx] ?? tabs[tabIdx - 1] ?? null;
+            if (tabs.length === 0 && prev.length > 1) {
+              const next = prev.filter((_, i) => i !== idx);
+              setActivePaneIndex(0);
+              return next;
+            }
+            const next = [...prev];
+            next[idx] = { tabs, active: nextActive };
+            return next;
+          });
+          break;
+        case "tab.next":
+        case "tab.prev":
+          setPanes((prev) => {
+            const idx = Math.min(activePaneIndex, prev.length - 1);
+            const pane = prev[idx];
+            if (!pane || pane.tabs.length < 2 || !pane.active) return prev;
+            const ai = pane.tabs.findIndex((t) => sameRef(t, pane.active));
+            if (ai === -1) return prev;
+            const n = pane.tabs.length;
+            const nextIdx =
+              id === "tab.next" ? (ai + 1) % n : (ai - 1 + n) % n;
+            const next = [...prev];
+            next[idx] = { ...pane, active: pane.tabs[nextIdx]! };
+            return next;
+          });
+          break;
+        case "zoom.in":
+          stepActivePaneZoom(1);
+          break;
+        case "zoom.out":
+          stepActivePaneZoom(-1);
+          break;
+        case "zoom.reset":
+          stepActivePaneZoom(0);
+          break;
       }
     };
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
-  }, [activePaneIndex, stepActivePaneZoom]);
+  }, [activePaneIndex, stepActivePaneZoom, shortcutsOpen]);
 
   const allRefs = useMemo<DocRef[]>(
     () => roots.flatMap((r) => r.files.map((p) => ({ root: r.name, path: p }))),
@@ -549,11 +626,6 @@ export default function App() {
     }
     return out;
   }, [panes]);
-
-  const [mod, setMod] = useState("⌘");
-  useEffect(() => {
-    setMod(/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl");
-  }, []);
 
   if (err) {
     return (
@@ -594,7 +666,7 @@ export default function App() {
               onSplit={handleSplit}
               onClosePane={handleClosePane}
               onTabMove={handleTabMove}
-              mod={mod}
+              onTabDropNewPane={handleTabDropNewPane}
             />
           }
           right={
@@ -616,6 +688,20 @@ export default function App() {
         zoom={panes[activePaneIndex]?.zoom ?? 1}
         canZoom={!!active}
         onZoom={stepActivePaneZoom}
+        onShowShortcuts={() => setShortcutsOpen(true)}
+        onShowChangelog={() => {
+          setChangelogSince(null);
+          setChangelogOpen(true);
+        }}
+      />
+      <ShortcutsDialog
+        open={shortcutsOpen}
+        onClose={() => setShortcutsOpen(false)}
+      />
+      <ChangelogDialog
+        open={changelogOpen}
+        sinceVersion={changelogSince}
+        onClose={() => setChangelogOpen(false)}
       />
       <CommandPalette
         open={paletteOpen}

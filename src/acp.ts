@@ -5,8 +5,12 @@ import {
   ndJsonStream,
   PROTOCOL_VERSION,
   type ContentBlock,
+  type PermissionOption,
+  type RequestPermissionOutcome,
+  type SessionMode,
   type SessionNotification,
   type StopReason,
+  type ToolCallUpdate,
 } from "@agentclientprotocol/sdk";
 import pkg from "../package.json" with { type: "json" };
 
@@ -15,9 +19,28 @@ const VERSION: string = (pkg as { version: string }).version;
 export type ChatEvent =
   | { type: "chat:state"; state: "starting" | "ready" | "error"; error?: string }
   | { type: "chat:update"; update: SessionNotification["update"] }
+  | {
+      type: "chat:permission";
+      id: string;
+      options: PermissionOption[];
+      toolCall: ToolCallUpdate;
+    }
+  | { type: "chat:permission-resolved"; id: string }
+  | {
+      type: "chat:modes";
+      available: SessionMode[];
+      currentId: string | null;
+    }
   | { type: "chat:done"; stopReason: StopReason | "error"; error?: string };
 
 type Emit = (evt: ChatEvent) => void;
+
+type PendingPermission = {
+  id: string;
+  options: PermissionOption[];
+  toolCall: ToolCallUpdate;
+  resolve: (outcome: RequestPermissionOutcome) => void;
+};
 
 export class ACPAgent {
   private child: ChildProcessWithoutNullStreams | null = null;
@@ -26,8 +49,66 @@ export class ACPAgent {
   private startPromise: Promise<void> | null = null;
   private listeners = new Set<Emit>();
   private lastState: ChatEvent = { type: "chat:state", state: "starting" };
+  private pendingPermissions = new Map<string, PendingPermission>();
+  private permissionSeq = 0;
+  private availableModes: SessionMode[] = [];
+  private currentModeId: string | null = null;
 
   constructor(private cwd: string) {}
+
+  getModes(): { available: SessionMode[]; currentId: string | null } {
+    return {
+      available: this.availableModes,
+      currentId: this.currentModeId,
+    };
+  }
+
+  async setMode(modeId: string): Promise<void> {
+    await this.ensureStarted();
+    if (!this.conn || !this.sessionId) throw new Error("agent not ready");
+    await this.conn.setSessionMode({
+      sessionId: this.sessionId,
+      modeId,
+    });
+    this.currentModeId = modeId;
+    this.emit({
+      type: "chat:modes",
+      available: this.availableModes,
+      currentId: this.currentModeId,
+    });
+  }
+
+  getPendingPermissions(): Array<{
+    id: string;
+    options: PermissionOption[];
+    toolCall: ToolCallUpdate;
+  }> {
+    return [...this.pendingPermissions.values()].map(({ resolve, ...rest }) => {
+      void resolve;
+      return rest;
+    });
+  }
+
+  resolvePermission(id: string, optionId: string | null): boolean {
+    const pending = this.pendingPermissions.get(id);
+    if (!pending) return false;
+    this.pendingPermissions.delete(id);
+    pending.resolve(
+      optionId === null
+        ? { outcome: "cancelled" }
+        : { outcome: "selected", optionId },
+    );
+    this.emit({ type: "chat:permission-resolved", id });
+    return true;
+  }
+
+  private cancelAllPermissions() {
+    for (const [id, p] of this.pendingPermissions) {
+      p.resolve({ outcome: "cancelled" });
+      this.emit({ type: "chat:permission-resolved", id });
+    }
+    this.pendingPermissions.clear();
+  }
 
   on(fn: Emit): () => void {
     this.listeners.add(fn);
@@ -87,6 +168,7 @@ export class ACPAgent {
         state: "error",
         error: `agent exited (code=${code ?? "null"})`,
       });
+      this.cancelAllPermissions();
       this.conn = null;
       this.sessionId = null;
       this.startPromise = null;
@@ -103,11 +185,40 @@ export class ACPAgent {
     this.conn = new ClientSideConnection(
       () => ({
         sessionUpdate: async (params) => {
+          const u = params.update as {
+            sessionUpdate: string;
+            currentModeId?: string;
+          };
+          if (u.sessionUpdate === "current_mode_update" && u.currentModeId) {
+            this.currentModeId = u.currentModeId;
+            this.emit({
+              type: "chat:modes",
+              available: this.availableModes,
+              currentId: this.currentModeId,
+            });
+          }
           this.emit({ type: "chat:update", update: params.update });
         },
-        requestPermission: async () => ({
-          outcome: { outcome: "cancelled" },
-        }),
+        requestPermission: async (params) => {
+          const id = `p-${Date.now()}-${++this.permissionSeq}`;
+          const outcome = await new Promise<RequestPermissionOutcome>(
+            (resolve) => {
+              this.pendingPermissions.set(id, {
+                id,
+                options: params.options,
+                toolCall: params.toolCall,
+                resolve,
+              });
+              this.emit({
+                type: "chat:permission",
+                id,
+                options: params.options,
+                toolCall: params.toolCall,
+              });
+            },
+          );
+          return { outcome };
+        },
         readTextFile: async () => ({ content: "" }),
         writeTextFile: async () => ({}),
         createTerminal: async () => {
@@ -126,12 +237,26 @@ export class ACPAgent {
       clientInfo: { name: "meta.txt", version: VERSION },
     });
 
+    const captureSession = (session: {
+      sessionId: string;
+      modes?: { availableModes: SessionMode[]; currentModeId: string } | null;
+    }) => {
+      this.sessionId = session.sessionId;
+      if (session.modes) {
+        this.availableModes = session.modes.availableModes;
+        this.currentModeId = session.modes.currentModeId;
+      } else {
+        this.availableModes = [];
+        this.currentModeId = null;
+      }
+    };
+
     try {
       const session = await this.conn.newSession({
         cwd: this.cwd,
         mcpServers: [],
       });
-      this.sessionId = session.sessionId;
+      captureSession(session);
     } catch (err: unknown) {
       const msg = String((err as { message?: string })?.message ?? err);
       if (/auth/i.test(msg)) {
@@ -140,13 +265,18 @@ export class ACPAgent {
           cwd: this.cwd,
           mcpServers: [],
         });
-        this.sessionId = session.sessionId;
+        captureSession(session);
       } else {
         throw err;
       }
     }
 
     this.emit({ type: "chat:state", state: "ready" });
+    this.emit({
+      type: "chat:modes",
+      available: this.availableModes,
+      currentId: this.currentModeId,
+    });
   }
 
   async prompt(blocks: ContentBlock[]): Promise<void> {
@@ -168,6 +298,7 @@ export class ACPAgent {
   }
 
   async cancel(): Promise<void> {
+    this.cancelAllPermissions();
     if (!this.conn || !this.sessionId) return;
     try {
       await this.conn.cancel({ sessionId: this.sessionId });
@@ -175,6 +306,7 @@ export class ACPAgent {
   }
 
   stop(): void {
+    this.cancelAllPermissions();
     this.child?.kill();
     this.child = null;
     this.conn = null;

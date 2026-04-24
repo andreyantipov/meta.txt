@@ -1,6 +1,6 @@
 {
   "name": "meta.txt",
-  "version": "0.4.0",
+  "version": "0.6.0",
   "description": "llms.txt, but for your repo — a living markdown knowledge base browsable via npx meta.txt",
   "type": "module",
   "bin": {
@@ -11,6 +11,7 @@
     "src",
     "ui/dist",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {

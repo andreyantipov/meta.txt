@@ -1,11 +1,17 @@
-import { useEffect, useRef } from "react";
-import { FileText } from "@phosphor-icons/react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type DragEvent,
+} from "react";
+import { FileText, SplitHorizontal } from "@phosphor-icons/react";
 import {
   ResizableHandle,
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
-import { TabBar } from "@/components/tab-bar";
+import { TabBar, TAB_MIME, type TabDragData } from "@/components/tab-bar";
 import { DocContent, type DocStats } from "@/components/doc-content";
 import type { DocRef } from "@/lib/api";
 import { cn } from "@/lib/utils";
@@ -31,6 +37,7 @@ type Props = {
     ref: DocRef,
     insertIndex: number,
   ) => void;
+  onTabDropNewPane: (fromPaneIndex: number, ref: DocRef) => void;
   onStatsChange: (stats: DocStats | null) => void;
 };
 
@@ -44,32 +51,65 @@ export function SplitViewer({
   onSplit,
   onClosePane,
   onTabMove,
+  onTabDropNewPane,
   onStatsChange,
 }: Props) {
   const canSplit = panes.length < 2;
   const multiPane = panes.length > 1;
+  const [draggingTab, setDraggingTab] = useState<TabDragData | null>(null);
+
+  useEffect(() => {
+    const onStart = (e: Event) => {
+      const ce = e as CustomEvent<TabDragData>;
+      setDraggingTab(ce.detail ?? null);
+    };
+    const onEnd = () => setDraggingTab(null);
+    window.addEventListener("meta-tab-drag-start", onStart);
+    window.addEventListener("meta-tab-drag-end", onEnd);
+    return () => {
+      window.removeEventListener("meta-tab-drag-start", onStart);
+      window.removeEventListener("meta-tab-drag-end", onEnd);
+    };
+  }, []);
+
+  const showNewPaneZone =
+    canSplit &&
+    !!draggingTab &&
+    (panes[draggingTab.fromPaneIndex]?.tabs.length ?? 0) > 1;
 
   if (panes.length === 1) {
     const pane = panes[0]!;
     return (
-      <Pane
-        pane={pane}
-        paneIndex={0}
-        isActive={activePaneIndex === 0}
-        isFocused={activePaneIndex === 0}
-        multiPane={multiPane}
-        showRoot={showRoot}
-        canSplit={canSplit}
-        onFocus={() => onPaneFocus(0)}
-        onTabSelect={(ref) => onTabSelect(0, ref)}
-        onTabClose={(ref) => onTabClose(0, ref)}
-        onSplit={() => onSplit(0)}
-        onClosePane={undefined}
-        onTabDrop={(from, ref, insertIdx) =>
-          onTabMove(from, 0, ref, insertIdx)
-        }
-        onStatsChange={onStatsChange}
-      />
+      <div className="relative flex h-full w-full">
+        <div className="min-w-0 flex-1">
+          <Pane
+            pane={pane}
+            paneIndex={0}
+            isActive={activePaneIndex === 0}
+            isFocused={activePaneIndex === 0}
+            multiPane={multiPane}
+            showRoot={showRoot}
+            canSplit={canSplit}
+            onFocus={() => onPaneFocus(0)}
+            onTabSelect={(ref) => onTabSelect(0, ref)}
+            onTabClose={(ref) => onTabClose(0, ref)}
+            onSplit={() => onSplit(0)}
+            onClosePane={undefined}
+            onTabDrop={(from, ref, insertIdx) =>
+              onTabMove(from, 0, ref, insertIdx)
+            }
+            onStatsChange={onStatsChange}
+          />
+        </div>
+        {showNewPaneZone && (
+          <NewPaneDropZone
+            onDrop={(from, ref) => {
+              onTabDropNewPane(from, ref);
+              setDraggingTab(null);
+            }}
+          />
+        )}
+      </div>
     );
   }
 
@@ -260,6 +300,67 @@ function Pane({
             <div className="text-sm">No document selected</div>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function NewPaneDropZone({
+  onDrop,
+}: {
+  onDrop: (fromPaneIndex: number, ref: DocRef) => void;
+}) {
+  const [over, setOver] = useState(false);
+
+  const handleDragOver = useCallback((e: DragEvent<HTMLDivElement>) => {
+    if (!e.dataTransfer.types.includes(TAB_MIME)) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setOver(true);
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent<HTMLDivElement>) => {
+    const related = e.relatedTarget as Node | null;
+    if (related && e.currentTarget.contains(related)) return;
+    setOver(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (e: DragEvent<HTMLDivElement>) => {
+      const raw = e.dataTransfer.getData(TAB_MIME);
+      setOver(false);
+      if (!raw) return;
+      try {
+        const data = JSON.parse(raw) as TabDragData;
+        if (
+          !data ||
+          typeof data.fromPaneIndex !== "number" ||
+          !data.ref?.root ||
+          !data.ref?.path
+        )
+          return;
+        e.preventDefault();
+        onDrop(data.fromPaneIndex, data.ref);
+      } catch {}
+    },
+    [onDrop],
+  );
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      className={cn(
+        "absolute inset-y-2 right-2 z-20 flex w-[38%] min-w-[160px] max-w-[360px] flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed backdrop-blur-[2px] transition-colors",
+        over
+          ? "border-primary/70 bg-primary/10 text-primary"
+          : "border-border/60 bg-background/60 text-muted-foreground",
+      )}
+    >
+      <SplitHorizontal className="size-6" weight="duotone" />
+      <div className="text-xs font-medium">
+        {over ? "Release to split" : "Drop to split"}
       </div>
     </div>
   );

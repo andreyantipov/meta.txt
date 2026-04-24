@@ -23,7 +23,13 @@ chat prompts you type yourself.
 - **Markdown, text, and HTML** with Mermaid diagrams rendered inline.
   HTML pages render in reader mode when possible.
 - **File tree + Outline** in one sidebar — file tree on top, heading
-  outline of the current doc below it. Click a heading to scroll.
+  outline of the current doc below it. Click a heading to scroll. Both
+  panels are always visible; the outline shows an empty state when a
+  doc has no headings.
+- **Handles large repos** — file tree and outline are built in O(N),
+  so 40k-file trees (Unity docs, llvm, etc.) open without jank. The
+  outline appears instantly even on large markdown; the full parse
+  happens in the background.
 - **Live reload** — edits show up without refreshing.
 
 ### Search
@@ -45,8 +51,11 @@ chat prompts you type yourself.
 
 - **Tabs per pane** with `⌘[` / `⌘]` to cycle, middle-click or `×` to
   close.
-- **Horizontal split** for reading two docs side-by-side. Drag tabs
-  between panes; close the secondary pane with its `×`.
+- **Horizontal split** for reading two docs side-by-side.
+- **Drag-to-split** — drag any tab toward the right edge of the
+  viewer and drop it on the highlighted zone to create a new pane.
+- **Drag between panes** to rearrange. Close the secondary pane with
+  its `×`.
 - **Tabs survive reload** along with the split layout and active doc.
 
 ### Layout & status
@@ -55,8 +64,12 @@ chat prompts you type yourself.
   toggle the sidebar and `⌘J` for chat.
 - **Status bar** shows the current git `branch (sha) → path`, file
   size, exact token count, reading time, and zoom controls for the
-  active pane.
-- **Dark mode by default**, including for HTML pages.
+  active pane. Click the version to read the changelog.
+- **Auto / Light / Dark theme** — follows your system by default, one
+  click to pick a specific mode. HTML pages recolour with the theme.
+- **Customisable keyboard shortcuts** — press `?` (or click the
+  keyboard icon in the status bar) to browse every shortcut and
+  rebind any of them.
 
 ## Usage
 
@@ -79,18 +92,23 @@ Default port is `4242` (override with `-p` or `META_PORT`).
 
 ## Shortcuts
 
+Every global shortcut is rebindable — press `?` in the app to browse
+and customise them.
+
 | Keys             | Action                                    |
 | ---------------- | ----------------------------------------- |
 | `⌘K` / `Ctrl+K`  | open command palette (files + content)    |
 | `⌘J` / `Ctrl+J`  | toggle chat panel                         |
 | `⌘B` / `Ctrl+B`  | toggle sidebar                            |
+| `⌘W` / `Ctrl+W`  | close active tab                          |
 | `⌘[` / `⌘]`      | cycle tabs in the active pane             |
 | `⌘=` / `⌘-`      | zoom active pane in / out                 |
 | `⌘0`             | reset active pane zoom                    |
+| `?`              | open the keyboard shortcuts dialog        |
 | `↑` / `↓`        | navigate palette results                  |
 | `↵`              | open selected result / send chat message  |
 | `⇧↵`             | newline in chat input                     |
-| `Esc`            | close palette                             |
+| `Esc`            | close palette / dialog                    |
 
 ## Caveats
 
@@ -105,5 +123,6 @@ machine.
 - **Chat goes to Anthropic.** Prompts you send travel to Claude via
   your local `claude login`, just as they would from Claude Code.
 
-See [CLAUDE.md](./CLAUDE.md) for the development layout, build flow,
-and embedding notes.
+See [CHANGELOG.md](./CHANGELOG.md) for what's new, and
+[CLAUDE.md](./CLAUDE.md) for the development layout, build flow, and
+embedding notes.

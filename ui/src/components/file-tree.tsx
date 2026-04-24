@@ -1,4 +1,12 @@
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  Fragment,
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   CaretDown,
@@ -13,6 +21,8 @@ import {
   TREE_CHEV_COL,
 } from "@/components/tree-row";
 import type { DocRef, RootEntry } from "@/lib/api";
+import { rootColor } from "@/lib/root-color";
+import { cn } from "@/lib/utils";
 
 type TreeNode = {
   name: string;
@@ -59,21 +69,33 @@ type FlatRow =
 
 function buildTree(files: string[]): TreeNode[] {
   const root: TreeNode = { name: "", fullPath: "", isDir: true, children: [] };
+  const childIndex = new WeakMap<TreeNode, Map<string, TreeNode>>();
+  childIndex.set(root, new Map());
+
   for (const file of files) {
-    const parts = file.split("/");
     let node = root;
-    for (let i = 0; i < parts.length; i++) {
-      const name = parts[i]!;
-      const isLast = i === parts.length - 1;
-      const fullPath = parts.slice(0, i + 1).join("/");
-      let child = node.children.find((c) => c.name === name);
+    let cursor = 0;
+    const len = file.length;
+    while (cursor <= len) {
+      const nextSlash = file.indexOf("/", cursor);
+      const end = nextSlash === -1 ? len : nextSlash;
+      const name = file.slice(cursor, end);
+      const isLast = nextSlash === -1;
+      const fullPath = isLast ? file : file.slice(0, end);
+      const idx = childIndex.get(node)!;
+      let child = idx.get(name);
       if (!child) {
         child = { name, fullPath, isDir: !isLast, children: [] };
+        idx.set(name, child);
         node.children.push(child);
+        if (!isLast) childIndex.set(child, new Map());
       }
       node = child;
+      if (isLast) break;
+      cursor = end + 1;
     }
   }
+
   const sort = (n: TreeNode) => {
     n.children.sort((a, b) => {
       if (a.isDir !== b.isDir) return a.isDir ? -1 : 1;
@@ -93,11 +115,11 @@ function flattenBuilt(
   expanded: Record<string, Set<string>>,
   multi: boolean,
 ): FlatRow[] {
-  const out: FlatRow[] = [];
+  const rows: FlatRow[] = [];
   for (const { root, tree } of trees) {
     const rOpen = rootOpen[root.name] ?? true;
     if (multi) {
-      out.push({
+      rows.push({
         kind: "root",
         key: `r:${root.name}`,
         rootName: root.name,
@@ -105,9 +127,11 @@ function flattenBuilt(
         open: rOpen,
       });
       if (!rOpen) continue;
+    } else if (!rOpen) {
+      continue;
     }
     if (tree.length === 0) {
-      out.push({ kind: "empty", key: `e:${root.name}`, rootName: root.name });
+      rows.push({ kind: "empty", key: `e:${root.name}`, rootName: root.name });
       continue;
     }
     const rootExp = expanded[root.name] ?? new Set<string>();
@@ -122,7 +146,7 @@ function flattenBuilt(
         const mask = [...parentMask, isLast];
         if (n.isDir) {
           const dOpen = rootExp.has(n.fullPath);
-          out.push({
+          rows.push({
             kind: "dir",
             key: `d:${root.name}:${n.fullPath}`,
             rootName: root.name,
@@ -135,7 +159,7 @@ function flattenBuilt(
           });
           if (dOpen) walk(n.children, depth + 1, mask);
         } else {
-          out.push({
+          rows.push({
             kind: "file",
             key: `f:${root.name}:${n.fullPath}`,
             rootName: root.name,
@@ -149,7 +173,7 @@ function flattenBuilt(
     };
     walk(tree, 0, []);
   }
-  return out;
+  return rows;
 }
 
 function ancestorPaths(path: string): string[] {
@@ -160,6 +184,7 @@ function ancestorPaths(path: string): string[] {
 }
 
 const STORAGE_KEY = "meta.txt:expanded";
+const SCROLL_KEY = "meta.txt:file-tree-scroll";
 
 function loadExpanded(): Record<string, string[]> {
   try {
@@ -202,6 +227,9 @@ export function FileTree({ roots, active, onSelect }: Props) {
   });
 
   const scrollRef = useRef<HTMLDivElement>(null);
+  const rafRef = useRef(0);
+  const saveScrollTimerRef = useRef<number | null>(null);
+  const scrollRestoredRef = useRef(false);
 
   useEffect(() => {
     saveExpanded(expanded);
@@ -213,6 +241,7 @@ export function FileTree({ roots, active, onSelect }: Props) {
     } catch {}
   }, [rootOpen]);
 
+  // When the user opens a file, open its root group and expand ancestor dirs.
   useEffect(() => {
     if (!active) return;
     setRootOpen((r) =>
@@ -246,6 +275,35 @@ export function FileTree({ roots, active, onSelect }: Props) {
     [builtTrees, rootOpen, expanded, multi],
   );
 
+  const sections = useMemo(() => {
+    if (!multi) return [];
+    const out: Array<{
+      name: string;
+      path: string;
+      open: boolean;
+      rowIndex: number;
+      contentSpan: number;
+    }> = [];
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i]!;
+      if (r.kind === "root") {
+        out.push({
+          name: r.rootName,
+          path: r.rootPath,
+          open: r.open,
+          rowIndex: i,
+          contentSpan: 0,
+        });
+      }
+    }
+    for (let i = 0; i < out.length; i++) {
+      const nextStart =
+        out[i + 1]?.rowIndex ?? rows.length;
+      out[i]!.contentSpan = nextStart - out[i]!.rowIndex - 1;
+    }
+    return out;
+  }, [rows, multi]);
+
   const rowIndexByFile = useMemo(() => {
     const m = new Map<string, number>();
     for (let i = 0; i < rows.length; i++) {
@@ -266,7 +324,10 @@ export function FileTree({ roots, active, onSelect }: Props) {
     if (!active) return;
     const idx = rowIndexByFile.get(`${active.root}:${active.path}`);
     if (idx !== undefined) virtualizer.scrollToIndex(idx, { align: "auto" });
-  }, [active?.root, active?.path, rowIndexByFile, virtualizer]);
+    // Deliberately omit rowIndexByFile/virtualizer: autoscroll only on active
+    // file change, not on every tree rebuild (folder toggles must not jump).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active?.root, active?.path]);
 
   const toggleDir = useCallback((rootName: string, path: string) => {
     setExpanded((prev) => {
@@ -277,41 +338,129 @@ export function FileTree({ roots, active, onSelect }: Props) {
     });
   }, []);
 
-  const toggleRoot = useCallback((rootName: string) => {
-    setRootOpen((r) => ({ ...r, [rootName]: !(r[rootName] ?? true) }));
+  const sectionsRef = useRef(sections);
+  sectionsRef.current = sections;
+
+  const handleRootClick = useCallback(
+    (rootName: string) => {
+      const isOpen = rootOpen[rootName] ?? true;
+      if (isOpen) {
+        setRootOpen((r) => ({ ...r, [rootName]: false }));
+        return;
+      }
+      setRootOpen((r) => ({ ...r, [rootName]: true }));
+      const doScroll = () => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const secs = sectionsRef.current;
+        const idx = secs.findIndex((s) => s.name === rootName);
+        if (idx < 0) return;
+        const section = secs[idx]!;
+        const target = section.rowIndex * ROW_HEIGHT - idx * ROW_HEIGHT;
+        el.scrollTop = Math.max(0, target);
+      };
+      requestAnimationFrame(() => requestAnimationFrame(doScroll));
+    },
+    [rootOpen],
+  );
+
+  const handleScroll = useCallback(() => {
+    if (rafRef.current) return;
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = 0;
+      const el = scrollRef.current;
+      if (!el) return;
+      const st = el.scrollTop;
+      if (saveScrollTimerRef.current)
+        window.clearTimeout(saveScrollTimerRef.current);
+      saveScrollTimerRef.current = window.setTimeout(() => {
+        try {
+          localStorage.setItem(SCROLL_KEY, String(st));
+        } catch {}
+      }, 200);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (scrollRestoredRef.current || rows.length === 0) return;
+    scrollRestoredRef.current = true;
+    const saved = Number(localStorage.getItem(SCROLL_KEY) ?? "0");
+    if (!saved || !scrollRef.current) return;
+    requestAnimationFrame(() => {
+      const el = scrollRef.current;
+      if (!el) return;
+      el.scrollTop = saved;
+    });
+  }, [rows.length]);
+
+  useEffect(() => {
+    return () => {
+      if (rafRef.current) cancelAnimationFrame(rafRef.current);
+      if (saveScrollTimerRef.current)
+        window.clearTimeout(saveScrollTimerRef.current);
+    };
   }, []);
 
   return (
-    <div ref={scrollRef} className="h-full overflow-y-auto py-1">
+    <div className="flex h-full min-h-0 flex-col">
       <div
-        className="relative"
-        style={{ height: virtualizer.getTotalSize() }}
+        ref={scrollRef}
+        onScroll={handleScroll}
+        className="min-h-0 flex-1 overflow-y-auto"
       >
-        {virtualizer.getVirtualItems().map((v) => {
-          const row = rows[v.index]!;
-          const isActive =
-            row.kind === "file" &&
-            active?.root === row.rootName &&
-            active?.path === row.path;
-          return (
-            <div
-              key={row.key}
-              className="absolute inset-x-0 top-0"
-              style={{
-                height: ROW_HEIGHT,
-                transform: `translateY(${v.start}px)`,
-              }}
-            >
-              <Row
-                row={row}
-                isActive={isActive}
-                onSelect={onSelect}
-                onToggleDir={toggleDir}
-                onToggleRoot={toggleRoot}
-              />
-            </div>
-          );
-        })}
+        <div
+          className="relative"
+          style={{ height: virtualizer.getTotalSize() }}
+        >
+          {multi &&
+            sections.map((s, i) => (
+              <Fragment key={s.name}>
+                <div
+                  className="sticky z-10 bg-muted shadow-[inset_0_-1px_0_0_var(--border)]"
+                  style={{
+                    top: i * ROW_HEIGHT,
+                    bottom: (sections.length - 1 - i) * ROW_HEIGHT,
+                    height: ROW_HEIGHT,
+                  }}
+                >
+                  <RootGroupHeader
+                    rootName={s.name}
+                    rootPath={s.path}
+                    open={s.open}
+                    onClick={() => handleRootClick(s.name)}
+                  />
+                </div>
+                {s.contentSpan > 0 && (
+                  <div style={{ height: s.contentSpan * ROW_HEIGHT }} />
+                )}
+              </Fragment>
+            ))}
+          {virtualizer.getVirtualItems().map((v) => {
+            const row = rows[v.index]!;
+            if (row.kind === "root") return null;
+            const isActive =
+              row.kind === "file" &&
+              active?.root === row.rootName &&
+              active?.path === row.path;
+            return (
+              <div
+                key={row.key}
+                className="absolute inset-x-0 top-0"
+                style={{
+                  height: ROW_HEIGHT,
+                  transform: `translateY(${v.start}px)`,
+                }}
+              >
+                <Row
+                  row={row}
+                  isActive={isActive}
+                  onSelect={onSelect}
+                  onToggleDir={toggleDir}
+                />
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );
@@ -322,40 +471,56 @@ type RowProps = {
   isActive: boolean;
   onSelect: (ref: DocRef) => void;
   onToggleDir: (root: string, path: string) => void;
-  onToggleRoot: (root: string) => void;
 };
+
+function RootGroupHeader({
+  rootName,
+  rootPath,
+  open,
+  onClick,
+}: {
+  rootName: string;
+  rootPath: string;
+  open: boolean;
+  onClick: () => void;
+}) {
+  const color = rootColor(rootName);
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={rootPath}
+      aria-expanded={open}
+      className="flex h-full w-full cursor-pointer items-center gap-1.5 pr-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-colors hover:text-foreground"
+      style={{ paddingLeft: TREE_BASE_PAD }}
+    >
+      <span
+        aria-hidden
+        className="flex shrink-0 items-center justify-center"
+        style={{ width: TREE_CHEV_COL }}
+      >
+        {open ? (
+          <CaretDown className="size-2.5" weight="bold" />
+        ) : (
+          <CaretRight className="size-2.5" weight="bold" />
+        )}
+      </span>
+      <span
+        aria-hidden
+        className="size-1.5 shrink-0 rounded-full"
+        style={{ backgroundColor: color }}
+      />
+      <span className="min-w-0 flex-1 truncate">{rootName}</span>
+    </button>
+  );
+}
 
 const Row = memo(function Row({
   row,
   isActive,
   onSelect,
   onToggleDir,
-  onToggleRoot,
 }: RowProps) {
-  if (row.kind === "root") {
-    return (
-      <button
-        type="button"
-        onClick={() => onToggleRoot(row.rootName)}
-        title={row.rootPath}
-        className="flex h-full w-full items-center gap-1 pr-2 text-left text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
-        style={{ paddingLeft: TREE_BASE_PAD }}
-      >
-        <span
-          className="flex shrink-0 items-center justify-center"
-          style={{ width: TREE_CHEV_COL }}
-        >
-          {row.open ? (
-            <CaretDown className="size-2.5" weight="bold" />
-          ) : (
-            <CaretRight className="size-2.5" weight="bold" />
-          )}
-        </span>
-        <span className="truncate">{row.rootName}</span>
-      </button>
-    );
-  }
-
   if (row.kind === "empty") {
     return (
       <div

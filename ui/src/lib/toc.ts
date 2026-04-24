@@ -34,6 +34,36 @@ function stripInlineMd(s: string): string {
     .trim();
 }
 
+export function extractMarkdownHeadings(raw: string): Heading[] {
+  const next = makeSlugger();
+  const headings: Heading[] = [];
+  const lines = raw.split("\n");
+  let inFence = false;
+  let fenceMark = "";
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]!;
+    const fence = line.match(/^(`{3,}|~{3,})/);
+    if (fence) {
+      if (!inFence) {
+        inFence = true;
+        fenceMark = fence[1]!;
+      } else if (line.startsWith(fenceMark)) {
+        inFence = false;
+        fenceMark = "";
+      }
+      continue;
+    }
+    if (inFence) continue;
+    const m = line.match(/^(#{1,6})\s+(.+?)\s*#*\s*$/);
+    if (!m) continue;
+    const depth = m[1]!.length;
+    const text = stripInlineMd(m[2]!);
+    if (!text) continue;
+    headings.push({ depth, text, id: next(text) });
+  }
+  return headings;
+}
+
 export function parseMarkdown(raw: string): {
   html: string;
   headings: Heading[];

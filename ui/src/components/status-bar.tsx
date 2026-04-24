@@ -1,6 +1,8 @@
-import { Minus, Plus } from "@phosphor-icons/react";
+import { Keyboard, Minus, Plus } from "@phosphor-icons/react";
 import type { DocStats } from "@/components/viewer";
+import { ThemeToggle } from "@/components/theme-toggle";
 import type { DocRef, GitInfo, RootEntry } from "@/lib/api";
+import { useShortcut } from "@/lib/keymap";
 import { cn } from "@/lib/utils";
 
 const CONTEXT_BUDGETS: Array<{ label: string; tokens: number }> = [
@@ -48,6 +50,8 @@ type Props = {
   zoom: number;
   canZoom: boolean;
   onZoom: (delta: -1 | 0 | 1) => void;
+  onShowShortcuts: () => void;
+  onShowChangelog: () => void;
 };
 
 export function StatusBar({
@@ -59,6 +63,8 @@ export function StatusBar({
   zoom,
   canZoom,
   onZoom,
+  onShowShortcuts,
+  onShowChangelog,
 }: Props) {
   const totalFiles = roots.reduce((s, r) => s + r.files.length, 0);
   const rootLabel =
@@ -73,12 +79,19 @@ export function StatusBar({
 
   return (
     <footer className="flex h-6 shrink-0 items-center gap-2 border-t border-border bg-muted/30 px-3 text-[11px] text-muted-foreground">
-      <span className="shrink-0 font-medium text-foreground/70">meta.txt</span>
-      <span className="shrink-0 font-mono tabular-nums">v{version}</span>
+      <button
+        type="button"
+        onClick={onShowChangelog}
+        title="What's new"
+        className="flex shrink-0 items-center gap-2 rounded px-1 -mx-1 transition-colors hover:bg-foreground/10 hover:text-foreground"
+      >
+        <span className="font-medium text-foreground/70">meta.txt</span>
+        <span className="font-mono tabular-nums">v{version}</span>
+      </button>
       <Sep />
       <span className="shrink-0 tabular-nums">{rootLabel}</span>
 
-      {(branch || sha) && (
+      {branch || sha ? (
         <>
           <Sep />
           <span className="shrink-0 font-mono" title={`git: ${branch ?? "(detached)"}${sha ? ` @ ${sha}` : ""}`}>
@@ -89,6 +102,8 @@ export function StatusBar({
           </span>
           <span className="shrink-0 text-muted-foreground/40">→</span>
         </>
+      ) : (
+        <Sep />
       )}
 
       {active ? (
@@ -128,13 +143,27 @@ export function StatusBar({
         </div>
       )}
 
-      {canZoom && (
-        <>
-          <Sep />
-          <ZoomGroup zoom={zoom} onZoom={onZoom} />
-        </>
-      )}
+      <Sep />
+      <div className="flex shrink-0 items-center gap-1">
+        {canZoom && <ZoomGroup zoom={zoom} onZoom={onZoom} />}
+        <ThemeToggle />
+        <ShortcutsButton onClick={onShowShortcuts} />
+      </div>
     </footer>
+  );
+}
+
+function ShortcutsButton({ onClick }: { onClick: () => void }) {
+  const sc = useShortcut("shortcuts.show");
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={sc.title ? `Keyboard shortcuts (${sc.title})` : "Keyboard shortcuts"}
+      className="flex h-4 shrink-0 items-center self-center rounded bg-foreground/5 px-1.5 text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
+    >
+      <Keyboard className="size-3" weight="bold" />
+    </button>
   );
 }
 
@@ -145,12 +174,15 @@ function ZoomGroup({
   zoom: number;
   onZoom: (delta: -1 | 0 | 1) => void;
 }) {
+  const zoomIn = useShortcut("zoom.in");
+  const zoomOut = useShortcut("zoom.out");
+  const zoomReset = useShortcut("zoom.reset");
   return (
     <div className="flex h-4 shrink-0 items-stretch self-center rounded bg-foreground/5">
       <button
         type="button"
         onClick={() => onZoom(-1)}
-        title="Zoom out (⌘−)"
+        title={zoomOut.title ? `Zoom out (${zoomOut.title})` : "Zoom out"}
         className="flex w-5 items-center justify-center rounded-l text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
       >
         <Minus className="size-2.5" weight="bold" />
@@ -158,7 +190,7 @@ function ZoomGroup({
       <button
         type="button"
         onClick={() => onZoom(0)}
-        title="Reset zoom (⌘0)"
+        title={zoomReset.title ? `Reset zoom (${zoomReset.title})` : "Reset zoom"}
         className={cn(
           "flex min-w-[34px] items-center justify-center px-1 font-mono text-[11px] leading-none tabular-nums transition-colors hover:bg-foreground/10 hover:text-foreground",
           zoom !== 1 ? "text-foreground" : "text-muted-foreground",
@@ -169,7 +201,7 @@ function ZoomGroup({
       <button
         type="button"
         onClick={() => onZoom(1)}
-        title="Zoom in (⌘=)"
+        title={zoomIn.title ? `Zoom in (${zoomIn.title})` : "Zoom in"}
         className="flex w-5 items-center justify-center rounded-r text-muted-foreground transition-colors hover:bg-foreground/10 hover:text-foreground"
       >
         <Plus className="size-2.5" weight="bold" />

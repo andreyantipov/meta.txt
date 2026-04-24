@@ -9,6 +9,7 @@ import {
 import { FileText, SplitHorizontal, X } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { DocRef } from "@/lib/api";
+import { rootColor } from "@/lib/root-color";
 
 export const TAB_MIME = "application/x-meta-tab";
 
@@ -196,6 +197,7 @@ const Tab = memo(function Tab({
 }: TabProps) {
   const name = basename(tab.path);
   const title = showRoot ? `${tab.root}/${tab.path}` : tab.path;
+  const color = showRoot ? rootColor(tab.root) : null;
 
   const handleClose = useCallback(
     (e: MouseEvent) => {
@@ -220,9 +222,16 @@ const Tab = memo(function Tab({
       const data: TabDragData = { fromPaneIndex: paneIndex, ref: tab };
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData(TAB_MIME, JSON.stringify(data));
+      window.dispatchEvent(
+        new CustomEvent<TabDragData>("meta-tab-drag-start", { detail: data }),
+      );
     },
     [paneIndex, tab],
   );
+
+  const handleDragEnd = useCallback(() => {
+    window.dispatchEvent(new CustomEvent("meta-tab-drag-end"));
+  }, []);
 
   return (
     <div
@@ -232,6 +241,7 @@ const Tab = memo(function Tab({
       tabIndex={0}
       draggable
       onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
       onClick={() => onSelect(tab)}
       onAuxClick={handleAuxClick}
       onKeyDown={(e) => {
@@ -255,6 +265,14 @@ const Tab = memo(function Tab({
           isActive ? "text-foreground/80" : "text-muted-foreground",
         )}
       />
+      {color && (
+        <span
+          aria-hidden
+          className="size-1.5 shrink-0 rounded-full"
+          style={{ backgroundColor: color }}
+          title={tab.root}
+        />
+      )}
       <span className="truncate">{name}</span>
       <button
         type="button"

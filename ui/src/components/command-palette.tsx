@@ -275,7 +275,7 @@ export function CommandPalette({
             <>
               <div
                 ref={listRef}
-                className="w-[44%] shrink-0 overflow-y-auto border-r border-border"
+                className="w-[44%] shrink-0 overflow-y-auto border-r border-border py-2"
               >
                 <div
                   className="relative p-1"
@@ -305,7 +305,7 @@ export function CommandPalette({
 
               <div
                 ref={previewRef}
-                className="flex min-w-0 flex-1 flex-col overflow-y-auto"
+                className="flex min-w-0 flex-1 flex-col overflow-y-auto py-1"
               >
                 {active ? (
                   <Preview item={active} showRoot={showRoot} query={query} />
