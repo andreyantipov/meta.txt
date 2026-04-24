@@ -568,6 +568,9 @@ export default function App() {
         case "outline.toggle":
           window.dispatchEvent(new CustomEvent("meta:outline-toggle"));
           break;
+        case "refs.toggle":
+          window.dispatchEvent(new CustomEvent("meta:refs-toggle"));
+          break;
         case "shortcuts.show":
           setShortcutsOpen(true);
           break;

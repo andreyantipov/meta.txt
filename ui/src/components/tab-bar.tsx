@@ -10,7 +10,7 @@ import { ArrowBendDownLeft, FileText, SplitHorizontal, X } from "@phosphor-icons
 import { cn } from "@/lib/utils";
 import type { DocRef } from "@/lib/api";
 import { rootColor } from "@/lib/root-color";
-import { useBackrefs } from "@/lib/refs";
+import { useBackrefsSourceCount } from "@/lib/refs";
 
 export const TAB_MIME = "application/x-meta-tab";
 
@@ -199,8 +199,7 @@ const Tab = memo(function Tab({
   const name = basename(tab.path);
   const title = showRoot ? `${tab.root}/${tab.path}` : tab.path;
   const color = showRoot ? rootColor(tab.root) : null;
-  const backrefs = useBackrefs(tab);
-  const backCount = backrefs.length;
+  const backCount = useBackrefsSourceCount(tab);
 
   const handleClose = useCallback(
     (e: MouseEvent) => {

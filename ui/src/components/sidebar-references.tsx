@@ -11,6 +11,7 @@ import {
 import type { DocRef, Edge, EdgeKind, EdgeStatus } from "@/lib/api";
 import { useBackrefs, useRefs } from "@/lib/refs";
 import { CountBadge } from "@/components/count-badge";
+import { useShortcut } from "@/lib/keymap";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -69,6 +70,7 @@ function dedupe(edges: Edge[], direction: Direction): Group[] {
 export function SidebarReferences({ active, expanded, onToggle }: Props) {
   const outgoingAll = useRefs(active);
   const incoming = useBackrefs(active);
+  const sc = useShortcut("refs.toggle");
 
   const buckets = useMemo(() => {
     const all = dedupe(outgoingAll, "outgoing");
@@ -94,8 +96,14 @@ export function SidebarReferences({ active, expanded, onToggle }: Props) {
       <button
         type="button"
         onClick={onToggle}
-        title={expanded ? "Collapse references" : "Expand references"}
-        className="flex h-[42px] shrink-0 items-center gap-1.5 border-b border-border bg-background px-3 text-xs font-medium text-foreground/80 hover:bg-muted"
+        title={
+          sc.title
+            ? `${expanded ? "Collapse" : "Expand"} references (${sc.title})`
+            : expanded
+              ? "Collapse references"
+              : "Expand references"
+        }
+        className="flex h-[42px] shrink-0 items-center gap-1.5 border-t border-border bg-background px-3 text-xs font-medium text-foreground/80 hover:bg-muted"
       >
         {expanded ? (
           <CaretDown className="size-3 shrink-0" weight="bold" />
@@ -104,6 +112,18 @@ export function SidebarReferences({ active, expanded, onToggle }: Props) {
         )}
         <span>References</span>
         <span className="ml-auto flex items-center gap-1">
+          {sc.parts.length > 0 && (
+            <span className="shortcut-hint pointer-events-none shrink-0 items-center gap-0.5 mr-1">
+              {sc.parts.map((p, i) => (
+                <kbd
+                  key={i}
+                  className="inline-flex h-4 min-w-[1rem] items-center justify-center rounded border border-border bg-muted px-1 font-sans text-[10px] leading-none text-muted-foreground"
+                >
+                  {p}
+                </kbd>
+              ))}
+            </span>
+          )}
           {buckets.incoming.length > 0 && (
             <CountBadge
               count={buckets.incoming.length}

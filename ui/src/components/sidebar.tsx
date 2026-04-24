@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { Files, SidebarSimple } from "@phosphor-icons/react";
-import { useDefaultLayout, usePanelRef } from "react-resizable-panels";
+import { useDefaultLayout } from "react-resizable-panels";
 import { FileTree } from "@/components/file-tree";
 import { Outline } from "@/components/outline";
 import { SidebarReferences } from "@/components/sidebar-references";
-import { useRefsSummary } from "@/lib/refs";
 import {
   ResizableHandle,
   ResizablePanel,
@@ -13,6 +12,23 @@ import {
 import type { DocRef, RootEntry } from "@/lib/api";
 import { subscribe } from "@/lib/events";
 import { useShortcut } from "@/lib/keymap";
+
+function loadFlag(key: string, fallback: boolean): boolean {
+  if (typeof window === "undefined") return fallback;
+  const v = window.localStorage.getItem(key);
+  if (v === null) return fallback;
+  return v !== "false";
+}
+
+function saveFlag(key: string, value: boolean): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.setItem(key, String(value));
+  } catch {}
+}
+
+const OUTLINE_EXPANDED_KEY = "meta.txt:outline-expanded";
+const REFS_EXPANDED_KEY = "meta.txt:refs-expanded";
 
 type ScanState = {
   roots: Array<{
@@ -145,58 +161,54 @@ type BodyProps = {
 };
 
 function SidebarBody({ roots, active, onSelect }: BodyProps) {
-  const outlineRef = usePanelRef();
-  const refsRef = usePanelRef();
-  const [outlineCollapsed, setOutlineCollapsed] = useState(false);
-  const [refsCollapsed, setRefsCollapsed] = useState(false);
+  // Outline + References live inside a single resizable "dock" panel. Inside
+  // the dock they're plain flex children — toggling one only hides/shows its
+  // own content via local state; it does not change the dock's size, does not
+  // touch the file tree, and does not touch its sibling. The only library-
+  // resizable boundary is between Files and the dock.
+  const [outlineExpanded, setOutlineExpanded] = useState(() =>
+    loadFlag(OUTLINE_EXPANDED_KEY, true),
+  );
+  const [refsExpanded, setRefsExpanded] = useState(() =>
+    loadFlag(REFS_EXPANDED_KEY, true),
+  );
+
+  useEffect(() => {
+    saveFlag(OUTLINE_EXPANDED_KEY, outlineExpanded);
+  }, [outlineExpanded]);
+  useEffect(() => {
+    saveFlag(REFS_EXPANDED_KEY, refsExpanded);
+  }, [refsExpanded]);
+
+  const toggleOutline = () => setOutlineExpanded((v) => !v);
+  const toggleRefs = () => setRefsExpanded((v) => !v);
+
+  useEffect(() => {
+    const onOutline = () => toggleOutline();
+    const onRefs = () => toggleRefs();
+    window.addEventListener("meta:outline-toggle", onOutline);
+    window.addEventListener("meta:refs-toggle", onRefs);
+    return () => {
+      window.removeEventListener("meta:outline-toggle", onOutline);
+      window.removeEventListener("meta:refs-toggle", onRefs);
+    };
+  }, []);
+
   const { defaultLayout, onLayoutChanged } = useDefaultLayout({
-    id: "meta.txt:sidebar-panels:v4",
-    panelIds: ["files", "outline", "refs"],
+    id: "meta.txt:sidebar-panels:v7",
+    panelIds: ["files", "dock"],
     storage: typeof window === "undefined" ? undefined : window.localStorage,
   });
 
-  const togglePanel = (
-    panelRef: ReturnType<typeof usePanelRef>,
-    expandTo: number,
-  ) => {
-    const p = panelRef.current;
-    if (!p) return;
-    if (p.isCollapsed()) {
-      p.expand();
-      queueMicrotask(() => {
-        if (p.isCollapsed() || p.getSize().asPercentage < 15) p.resize(expandTo);
-      });
-    } else {
-      p.collapse();
-    }
-  };
-
-  const toggleOutline = () => togglePanel(outlineRef, 30);
-  const toggleRefs = () => togglePanel(refsRef, 30);
-
-  useEffect(() => {
-    const handler = () => toggleOutline();
-    window.addEventListener("meta:outline-toggle", handler);
-    return () => window.removeEventListener("meta:outline-toggle", handler);
-  }, []);
-
-  // Auto-collapse References when the active doc has zero edges. Only fires
-  // after the summary flips to `loaded: true` — otherwise we'd collapse during
-  // the initial fetch and leave the user with an empty panel even though
-  // results were arriving. We never force-expand: if the user manually
-  // collapsed, their choice is respected.
-  const refsSummary = useRefsSummary(active);
-  useEffect(() => {
-    if (!active || !refsSummary.loaded) return;
-    if (refsSummary.total === 0) {
-      refsRef.current?.collapse();
-    }
-  }, [active?.root, active?.path, refsSummary.loaded, refsSummary.total]);
+  // When both sections are collapsed the dock only needs room for two 42px
+  // headers (84px total). Let it shrink so Files grows into the freed space
+  // without forcing the user to keep an empty panel open.
+  const bothCollapsed = !outlineExpanded && !refsExpanded;
 
   return (
     <ResizablePanelGroup
       orientation="vertical"
-      id="meta.txt:sidebar-panels:v4"
+      id="meta.txt:sidebar-panels:v7"
       defaultLayout={defaultLayout}
       onLayoutChanged={onLayoutChanged}
       className="min-h-0 flex-1"
@@ -208,42 +220,19 @@ function SidebarBody({ roots, active, onSelect }: BodyProps) {
       </ResizablePanel>
       <ResizableHandle />
       <ResizablePanel
-        id="outline"
-        panelRef={outlineRef}
-        collapsible
-        collapsedSize="42px"
-        defaultSize={25}
-        minSize={15}
-        onResize={() => {
-          const p = outlineRef.current;
-          if (p) setOutlineCollapsed(p.isCollapsed());
-        }}
+        id="dock"
+        defaultSize={50}
+        minSize={bothCollapsed ? 8 : 15}
       >
         <div className="flex h-full min-h-0 flex-col">
           <Outline
             active={active}
-            expanded={!outlineCollapsed}
+            expanded={outlineExpanded}
             onToggle={toggleOutline}
           />
-        </div>
-      </ResizablePanel>
-      <ResizableHandle />
-      <ResizablePanel
-        id="refs"
-        panelRef={refsRef}
-        collapsible
-        collapsedSize="42px"
-        defaultSize={25}
-        minSize={15}
-        onResize={() => {
-          const p = refsRef.current;
-          if (p) setRefsCollapsed(p.isCollapsed());
-        }}
-      >
-        <div className="flex h-full min-h-0 flex-col">
           <SidebarReferences
             active={active}
-            expanded={!refsCollapsed}
+            expanded={refsExpanded}
             onToggle={toggleRefs}
           />
         </div>

@@ -354,7 +354,7 @@ export function DocContent({ doc, zoom = 1, onStats }: Props) {
         )}
         style={zoom !== 1 ? { zoom } : undefined}
       >
-        {loading && <div className="text-muted-foreground">loading…</div>}
+        {loading && <DocSkeleton />}
         {error && <div className="text-destructive">{error}</div>}
         {!loading && !error && kind === "markdown" && markdownHtml && (
           <div
@@ -378,6 +378,31 @@ export function DocContent({ doc, zoom = 1, onStats }: Props) {
           </div>
         )}
       </article>
+    </div>
+  );
+}
+
+function DocSkeleton() {
+  return (
+    <div className="animate-pulse space-y-4" aria-label="Loading document">
+      <div className="h-8 w-2/3 rounded-md bg-muted" />
+      <div className="space-y-2">
+        <div className="h-3 w-full rounded bg-muted" />
+        <div className="h-3 w-11/12 rounded bg-muted" />
+        <div className="h-3 w-4/5 rounded bg-muted" />
+      </div>
+      <div className="h-5 w-1/3 rounded-md bg-muted" />
+      <div className="space-y-2">
+        <div className="h-3 w-full rounded bg-muted" />
+        <div className="h-3 w-10/12 rounded bg-muted" />
+        <div className="h-3 w-9/12 rounded bg-muted" />
+        <div className="h-3 w-11/12 rounded bg-muted" />
+      </div>
+      <div className="h-5 w-2/5 rounded-md bg-muted" />
+      <div className="space-y-2">
+        <div className="h-3 w-full rounded bg-muted" />
+        <div className="h-3 w-3/4 rounded bg-muted" />
+      </div>
     </div>
   );
 }

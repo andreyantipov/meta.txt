@@ -79,7 +79,7 @@ export function Outline({ active, expanded, onToggle }: Props) {
               ? "Collapse outline"
               : "Expand outline"
         }
-        className="flex h-[42px] shrink-0 items-center gap-1.5 border-b border-border bg-background px-3 text-xs font-medium text-foreground/80 hover:bg-muted"
+        className="flex h-[42px] shrink-0 items-center gap-1.5 bg-background px-3 text-xs font-medium text-foreground/80 hover:bg-muted"
       >
         {expanded ? (
           <CaretDown className="size-3 shrink-0" weight="bold" />

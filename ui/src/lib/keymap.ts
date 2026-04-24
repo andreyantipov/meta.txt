@@ -40,6 +40,12 @@ export const DEFINITIONS: ShortcutDef[] = [
     defaults: [{ alt: true, key: "o" }],
   },
   {
+    id: "refs.toggle",
+    group: "Panels",
+    label: "Toggle references",
+    defaults: [{ alt: true, key: "r" }],
+  },
+  {
     id: "tab.close",
     group: "Tabs",
     label: "Close tab",
